@@ -68,9 +68,7 @@ export default function Ansi({
     }
   });
 
-  /* $FlowFixMe[missing-local-annot] The type annotation(s) required by Flow's
-   * LTI update could not be added via codemod */
-  const getText = (content, key) => {
+  const getText = (content: string, key: number): string => {
     if (key === 0) {
       return LRM + content;
     } else if (key === 1) {
