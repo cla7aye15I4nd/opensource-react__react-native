@@ -48,8 +48,7 @@ class TextInputAccessoryViewChangeTextExample extends React.Component<
   {...},
   {text: string},
 > {
-  constructor(props: void | {...}) {
-    // $FlowFixMe[incompatible-type]
+  constructor(props: {...}) {
     super(props);
     this.state = {text: 'Placeholder Text'};
   }
