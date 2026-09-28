@@ -1,5 +1,111 @@
 # Changelog
 
+## v0.88.0-rc.3
+
+### Breaking
+
+
+
+#### Android specific
+
+
+
+#### iOS specific
+
+
+
+### Added
+
+
+
+#### Android specific
+
+
+
+#### iOS specific
+
+
+
+### Changed
+
+
+
+#### Android specific
+
+
+
+#### iOS specific
+
+
+
+### Deprecated
+
+
+
+#### Android specific
+
+
+
+#### iOS specific
+
+
+
+### Removed
+
+
+
+#### Android specific
+
+
+
+#### iOS specific
+
+
+
+### Fixed
+
+- Fix the Metro package-exports warning caused by `react-native/virtualized-lists` importing an unexported React Native subpath. ([a506ed66cc](https://github.com/react/react-native/commit/a506ed66cc5744ec017556f49a2c296fb4bad318) by [@giaBaoJS](https://github.com/giaBaoJS))
+
+#### Android specific
+
+- `[ANDROID] [FIXED] - Bump androidx.collection to 1.4.4 to fix view registry entries getting lost in SurfaceMountingManager` ([d6a5f159c6](https://github.com/react/react-native/commit/d6a5f159c6ef81651d38af2a33338b921700e044) by [@pawicao](https://github.com/pawicao))
+
+#### iOS specific
+
+- Stop SwiftPM autolinking from recreating library package roots on every sync, which broke Xcode builds of apps using libraries that ship their own Package.swift ([97cc934dc7](https://github.com/react/react-native/commit/97cc934dc75184977363e06b1793277de82fed54) by [@chrfalch](https://github.com/chrfalch))
+
+### Security
+
+
+
+#### Android specific
+
+
+
+#### iOS specific
+
+
+
+### Unknown
+
+- Release 0.88.0-rc.3 ([0782c61fe6](https://github.com/react/react-native/commit/0782c61fe6cf0dd566ed83d6b7600c80ef75b490) by [@react-native-bot](https://github.com/react-native-bot))
+- Bump Hermes to 260318099.0.4 ([993be7d6c6](https://github.com/react/react-native/commit/993be7d6c69c838bd6fb7acf6b979f8ea65ca03c) by [@fabriziocucci](https://github.com/fabriziocucci))
+- Bump Podfile.lock ([62f0e0b54a](https://github.com/react/react-native/commit/62f0e0b54abd2b405e154b2b3e6ce2b17dfbdef5) by [@react-native-bot](https://github.com/react-native-bot))
+- Release 0.88.0-rc.2 ([215169c51b](https://github.com/react/react-native/commit/215169c51bfe7b395a73454d65d5ff20e60113d6) by [@react-native-bot](https://github.com/react-native-bot))
+
+#### Android Unknown
+
+
+
+#### iOS Unknown
+
+
+
+#### Failed to parse
+
+
+
+
 ## v0.88.0-rc.2
 
 ### Changed
