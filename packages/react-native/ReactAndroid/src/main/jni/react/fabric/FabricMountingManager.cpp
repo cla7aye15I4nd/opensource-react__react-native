@@ -46,7 +46,11 @@ FabricMountingManager::~FabricMountingManager() {
 void FabricMountingManager::onSurfaceStart(SurfaceId surfaceId) {
   std::lock_guard lock(allocatedViewsMutex_);
   allocatedViewRegistry_.emplace(
-      surfaceId, std::unordered_map<Tag, Props::Shared>{{surfaceId, nullptr}});
+      surfaceId,
+      std::unordered_map<Tag, AllocatedView>{
+          {surfaceId,
+           {.preallocatedProps = nullptr,
+            .state = AllocatedViewState::Mounted}}});
 }
 
 void FabricMountingManager::onSurfaceStop(SurfaceId surfaceId) {
@@ -614,9 +618,9 @@ void FabricMountingManager::executeMount(
     std::lock_guard allocatedViewsLock(allocatedViewsMutex_);
 
     auto allocatedViewsIterator = allocatedViewRegistry_.find(surfaceId);
-    auto defaultAllocatedViews = std::unordered_map<Tag, Props::Shared>{};
+    auto defaultAllocatedViews = std::unordered_map<Tag, AllocatedView>{};
     // Do not remove `defaultAllocatedViews` or initialize
-    // `std::unordered_map<Tag, Props::Shared>{}` inline in below ternary
+    // `std::unordered_map<Tag, AllocatedView>{}` inline in below ternary
     // expression - if falsy operand is a value type, the compiler will decide
     // the expression to be a value type, an unnecessary (sometimes expensive)
     // copy will happen as a result.
@@ -639,13 +643,18 @@ void FabricMountingManager::executeMount(
       bool isVirtual = mutation.mutatedViewIsVirtual();
       switch (mutationType) {
         case ShadowViewMutation::Create: {
-          bool shouldCreateView =
-              !allocatedViewTags.contains(newChildShadowView.tag);
+          auto [allocatedView, shouldCreateView] =
+              allocatedViewTags.try_emplace(
+                  newChildShadowView.tag,
+                  AllocatedView{
+                      .preallocatedProps = nullptr,
+                      .state = AllocatedViewState::Mounted});
 
           if (shouldCreateView) {
             cppCommonMountItems.push_back(
                 CppMountItem::CreateMountItem(newChildShadowView));
-            allocatedViewTags.emplace(newChildShadowView.tag, nullptr);
+          } else {
+            allocatedView->second.state = AllocatedViewState::Mounted;
           }
           break;
         }
@@ -754,7 +763,8 @@ void FabricMountingManager::executeMount(
                     .push_back(
                         CppMountItem::UpdatePropsMountItem(
                             {}, newChildShadowView));
-              } else if (auto& preallocatedProps = allocatedView->second;
+              } else if (auto& preallocatedProps =
+                             allocatedView->second.preallocatedProps;
                          preallocatedProps != nullptr) {
                 if (preallocatedProps != newChildShadowView.props) {
                   auto preallocatedShadowView = newChildShadowView;
@@ -1055,15 +1065,42 @@ void FabricMountingManager::executeMount(
 }
 
 void FabricMountingManager::drainPreallocateViewsQueue() {
+  std::vector<QueuedView> queuedViews;
   std::vector<ShadowView> shadowViews;
 
   {
     std::lock_guard lock(preallocateMutex_);
-    std::swap(shadowViews, preallocatedViewsQueue_);
+    std::swap(queuedViews, preallocatedViewsQueue_);
+  }
+
+  bool pullModel =
+      ReactNativeFeatureFlags::enableMountingCoordinatorPullModelAndroid();
+  {
+    std::lock_guard allocatedViewsLock(allocatedViewsMutex_);
+    for (auto& [shadowView, family] : queuedViews) {
+      if (pullModel && family.expired()) {
+        continue;
+      }
+      auto allocatedViewsIterator =
+          allocatedViewRegistry_.find(shadowView.surfaceId);
+      if (allocatedViewsIterator != allocatedViewRegistry_.end() &&
+          allocatedViewsIterator->second
+              .emplace(
+                  shadowView.tag,
+                  AllocatedView{
+                      .preallocatedProps =
+                          shouldDiffInsertPropsAgainstPreallocatedProps()
+                          ? shadowView.props
+                          : nullptr,
+                      .state = AllocatedViewState::Preallocated})
+              .second) {
+        shadowViews.push_back(std::move(shadowView));
+      }
+    }
   }
 
   for (const auto& shadowView : shadowViews) {
-    preallocateShadowView(shadowView);
+    preallocateRegisteredView(shadowView);
   }
 }
 
@@ -1071,6 +1108,12 @@ void FabricMountingManager::destroyUnmountedShadowNode(
     const ShadowNodeFamily& family) {
   auto tag = family.getTag();
   auto surfaceId = family.getSurfaceId();
+  bool pullModel =
+      ReactNativeFeatureFlags::enableMountingCoordinatorPullModelAndroid();
+
+  if (!pullModel && family.hasBeenMounted()) {
+    return;
+  }
 
   // Remove from allocatedViewRegistry so that executeMount does not skip
   // the Create mount item for this tag. Without this, if the view was
@@ -1081,7 +1124,20 @@ void FabricMountingManager::destroyUnmountedShadowNode(
   {
     std::lock_guard allocatedViewsLock(allocatedViewsMutex_);
     auto allocatedViewsIterator = allocatedViewRegistry_.find(surfaceId);
-    if (allocatedViewsIterator != allocatedViewRegistry_.end()) {
+    if (pullModel) {
+      // In the pull model, a committed family can have a preallocated view that
+      // no mount created (its Create and Delete were never pulled), and a
+      // mounted view's family can be destroyed before its Delete is pulled.
+      if (allocatedViewsIterator == allocatedViewRegistry_.end()) {
+        return;
+      }
+      auto allocatedView = allocatedViewsIterator->second.find(tag);
+      if (allocatedView == allocatedViewsIterator->second.end() ||
+          allocatedView->second.state != AllocatedViewState::Preallocated) {
+        return;
+      }
+      allocatedViewsIterator->second.erase(allocatedView);
+    } else if (allocatedViewsIterator != allocatedViewRegistry_.end()) {
       allocatedViewsIterator->second.erase(tag);
     }
   }
@@ -1112,29 +1168,15 @@ void FabricMountingManager::maybePreallocateShadowNode(
 
   {
     std::lock_guard lock(preallocateMutex_);
-    preallocatedViewsQueue_.push_back(std::move(shadowView));
+    preallocatedViewsQueue_.push_back(
+        {.shadowView = std::move(shadowView),
+         .family = shadowNode.getFamilyShared()});
   }
 }
 
-void FabricMountingManager::preallocateShadowView(
+void FabricMountingManager::preallocateRegisteredView(
     const ShadowView& shadowView) {
-  TraceSection section("FabricMountingManager::preallocateShadowView");
-
-  {
-    std::lock_guard lock(allocatedViewsMutex_);
-    auto allocatedViewsIterator =
-        allocatedViewRegistry_.find(shadowView.surfaceId);
-    if (allocatedViewsIterator == allocatedViewRegistry_.end()) {
-      return;
-    }
-    const auto [_, inserted] = allocatedViewsIterator->second.emplace(
-        shadowView.tag,
-        shouldDiffInsertPropsAgainstPreallocatedProps() ? shadowView.props
-                                                        : nullptr);
-    if (!inserted) {
-      return;
-    }
-  }
+  TraceSection section("FabricMountingManager::preallocateRegisteredView");
 
   bool isLayoutableShadowNode = shadowView.layoutMetrics != EmptyLayoutMetrics;
 
