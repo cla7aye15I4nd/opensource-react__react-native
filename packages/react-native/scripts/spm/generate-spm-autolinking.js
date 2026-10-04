@@ -1910,7 +1910,7 @@ function main(argv /*:: ?: Array<string> */) /*: void */ {
   log(`Generated: ${path.relative(appRoot, outputPath)}`);
 
   // .spm-sync-watch-paths: absolute paths (dirs OR files) the Xcode auto-sync
-  // build phase watches for staleness. Three kinds of input, mixed freely:
+  // build phase watches for staleness. Four kinds of input, mixed freely:
   //   1. Each module's source dir (entryAbsDirs) — a dir; adding/removing a
   //      child bumps its mtime so `find -newer` trips and the `sources:`
   //      allowlist regenerates.
@@ -1922,6 +1922,8 @@ function main(argv /*:: ?: Array<string> */) /*: void */ {
   //      not derived by walking up from the (possibly nested) source dir.
   //   3. Plugin-contributed paths (e.g. Expo's own Package.swift / per-module
   //      manifests) — already validated absolute in invokePlugins.
+  //   4. The app's top-level `project.pbxproj` — a pulled project file can
+  //      link plugin frameworks this sync has not seen.
   // The phase distinguishes dir vs file with `-d`/`-f` at build time (no
   // markers). A listed path that later VANISHES forces a re-sync. Paths that do
   // not exist yet go to .spm-sync-watch-absent instead, and one that APPEARS
@@ -1938,6 +1940,11 @@ function main(argv /*:: ?: Array<string> */) /*: void */ {
     watchCandidates.push(path.join(root, '.react-native'));
   }
   watchCandidates.push(...pluginWatchPaths);
+  for (const name of fs.readdirSync(appRoot)) {
+    if (name.endsWith('.xcodeproj')) {
+      watchCandidates.push(path.join(appRoot, name, 'project.pbxproj'));
+    }
+  }
   const uniqueWatchCandidates = Array.from(new Set(watchCandidates))
     .filter(p => p.length > 0)
     .sort();

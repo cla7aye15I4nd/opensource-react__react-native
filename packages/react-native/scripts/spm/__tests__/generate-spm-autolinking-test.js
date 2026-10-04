@@ -1986,6 +1986,37 @@ describe('main() — .spm-sync-watch-paths emission', () => {
       fs.readFileSync(path.join(autolinkDir, '.spm-sync-watch-absent'), 'utf8'),
     ).toBe(path.join(expoDir, 'MISSING.swift') + '\n');
   });
+
+  it("watches the app's top-level Xcode project file, not the Pods project", () => {
+    const appRoot = fs.realpathSync(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'spm-watch-pbxproj-')),
+    );
+    created.push(appRoot);
+    const rnRoot = path.join(appRoot, 'rn');
+    fs.mkdirSync(rnRoot, {recursive: true});
+    fs.writeFileSync(
+      path.join(appRoot, 'package.json'),
+      JSON.stringify({name: 'app'}),
+    );
+    for (const project of ['App.xcodeproj', 'Pods/Pods.xcodeproj']) {
+      fs.mkdirSync(path.join(appRoot, project), {recursive: true});
+      fs.writeFileSync(path.join(appRoot, project, 'project.pbxproj'), '\n');
+    }
+    const autolinkDir = path.join(appRoot, 'build', 'generated', 'autolinking');
+    fs.mkdirSync(autolinkDir, {recursive: true});
+    fs.writeFileSync(
+      path.join(autolinkDir, 'autolinking.json'),
+      JSON.stringify({dependencies: {}}),
+    );
+
+    main(['--app-root', appRoot, '--react-native-root', rnRoot]);
+
+    const lines = readWatchLines(appRoot);
+    expect(lines).toContain(
+      path.join(appRoot, 'App.xcodeproj', 'project.pbxproj'),
+    );
+    expect(lines.some(l => l.includes('Pods.xcodeproj'))).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------

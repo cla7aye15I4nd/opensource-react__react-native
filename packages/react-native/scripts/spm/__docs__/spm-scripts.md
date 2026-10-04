@@ -707,7 +707,8 @@ _existing_ set of generated packages current; they do not create the first one.
      yarn, pnpm, bun); also checks parent `node_modules` for monorepo setups
    - a missing `build/xcframeworks/` (e.g. after a manual clean) also marks
      stale
-   - every path in `.spm-sync-watch-paths` — RN's own inputs plus any
+   - every path in `.spm-sync-watch-paths` — RN's own inputs (including the
+     app's `<Name>.xcodeproj/project.pbxproj`) plus any
      [plugin](./spm-autolinking-plugins.md#watchpaths--plugin-staleness-inputs)
      `watchPaths`; a watched file that is newer, a watched dir with a newer
      child, or a watched path that has **vanished** all mark stale
