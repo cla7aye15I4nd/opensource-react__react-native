@@ -2276,7 +2276,7 @@ class PluginFrameworkMismatchError extends Error {
  */
 function assertPluginFrameworksLinked(
   appRoot /*: string */,
-  env /*: {+[string]: ?string} */ = process.env,
+  env /*: {readonly [string]: ?string} */ = process.env,
 ) /*: void */ {
   const builtProjectPath = env.PROJECT_FILE_PATH;
   const xcodeprojPath =
@@ -2329,7 +2329,7 @@ function assertPluginFrameworksLinked(
     );
     linkedPluginNames = new Set(
       Array.from(
-        outputs.matchAll(/([^/"\s]+)\.framework\b/g),
+        outputs.matchAll(/([^/"\n]+)\.framework\b/g),
         m => m[1],
       ).filter(name => !builtinNames.has(name)),
     );
