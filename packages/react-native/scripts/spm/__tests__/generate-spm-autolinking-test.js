@@ -1879,7 +1879,8 @@ describe('main() — scriptPhases sidecar', () => {
 // and deduped/sorted: (1) each module's source DIR; (2) each npm dep's
 // checked-in root Package.swift (FILE) and .react-native/ (DIR) — threaded from
 // the autolinking model's dep root, not derived by walking up; (3) plugin
-// watchPaths. Nonexistent paths are filtered at emission time.
+// watchPaths; (4) the app's top-level project.pbxproj. Nonexistent paths go to
+// .spm-sync-watch-absent instead.
 // ---------------------------------------------------------------------------
 
 describe('main() — .spm-sync-watch-paths emission', () => {
@@ -1920,8 +1921,8 @@ describe('main() — .spm-sync-watch-paths emission', () => {
     fs.writeFileSync(path.join(fooDir, 'Foo.swift'), '// src\n');
 
     // (C) A plugin-host dep contributing watchPaths: one existing absolute path
-    // (kept), one absent absolute path (filtered at emission), one relative
-    // path (dropped by invokePlugins).
+    // (kept), one absent absolute path (listed as absent), one relative path
+    // (dropped by invokePlugins).
     const expoDir = path.join(appRoot, 'node_modules', 'expo');
     fs.mkdirSync(path.join(expoDir, 'ios'), {recursive: true});
     fs.writeFileSync(path.join(expoDir, 'ios', 'Expo.mm'), '// native\n');
@@ -1940,13 +1941,19 @@ describe('main() — .spm-sync-watch-paths emission', () => {
         "    productDependencies: [{name: 'ExpoModulesCore', package: 'ExpoModulesCore'}],",
         '    watchPaths: [',
         "      path.join(__dirname, 'Package.swift'),", // exists → kept
-        "      path.join(__dirname, 'MISSING.swift'),", // absent → filtered at emission
+        "      path.join(__dirname, 'MISSING.swift'),", // absent → listed as absent
         "      'rel/manifest',", // relative → dropped by invokePlugins
         '    ],',
         '  };',
         '};',
       ].join('\n') + '\n',
     );
+
+    // (D) The app's project file, next to a Pods project that is not watched.
+    for (const project of ['App.xcodeproj', 'Pods/Pods.xcodeproj']) {
+      fs.mkdirSync(path.join(appRoot, project), {recursive: true});
+      fs.writeFileSync(path.join(appRoot, project, 'project.pbxproj'), '\n');
+    }
 
     const autolinkDir = path.join(appRoot, 'build', 'generated', 'autolinking');
     fs.mkdirSync(autolinkDir, {recursive: true});
@@ -1972,6 +1979,12 @@ describe('main() — .spm-sync-watch-paths emission', () => {
     // (C) plugin's existing absolute watchPath is kept.
     expect(lines).toContain(path.join(expoDir, 'Package.swift'));
 
+    // (D) the app's project file is watched; the Pods project is not.
+    expect(lines).toContain(
+      path.join(appRoot, 'App.xcodeproj', 'project.pbxproj'),
+    );
+    expect(lines.some(l => l.includes('Pods.xcodeproj'))).toBe(false);
+
     // Filtered / dropped entries never reach the file.
     expect(lines.some(l => l.includes('MISSING.swift'))).toBe(false);
     expect(lines.some(l => l.includes('rel/manifest'))).toBe(false);
@@ -1980,42 +1993,9 @@ describe('main() — .spm-sync-watch-paths emission', () => {
     expect(new Set(lines).size).toBe(lines.length);
     expect([...lines].sort()).toEqual(lines);
 
-    // Absent paths are listed separately, so the build phase can re-sync
-    // when one of them appears.
     expect(
       fs.readFileSync(path.join(autolinkDir, '.spm-sync-watch-absent'), 'utf8'),
     ).toBe(path.join(expoDir, 'MISSING.swift') + '\n');
-  });
-
-  it("watches the app's top-level Xcode project file, not the Pods project", () => {
-    const appRoot = fs.realpathSync(
-      fs.mkdtempSync(path.join(os.tmpdir(), 'spm-watch-pbxproj-')),
-    );
-    created.push(appRoot);
-    const rnRoot = path.join(appRoot, 'rn');
-    fs.mkdirSync(rnRoot, {recursive: true});
-    fs.writeFileSync(
-      path.join(appRoot, 'package.json'),
-      JSON.stringify({name: 'app'}),
-    );
-    for (const project of ['App.xcodeproj', 'Pods/Pods.xcodeproj']) {
-      fs.mkdirSync(path.join(appRoot, project), {recursive: true});
-      fs.writeFileSync(path.join(appRoot, project, 'project.pbxproj'), '\n');
-    }
-    const autolinkDir = path.join(appRoot, 'build', 'generated', 'autolinking');
-    fs.mkdirSync(autolinkDir, {recursive: true});
-    fs.writeFileSync(
-      path.join(autolinkDir, 'autolinking.json'),
-      JSON.stringify({dependencies: {}}),
-    );
-
-    main(['--app-root', appRoot, '--react-native-root', rnRoot]);
-
-    const lines = readWatchLines(appRoot);
-    expect(lines).toContain(
-      path.join(appRoot, 'App.xcodeproj', 'project.pbxproj'),
-    );
-    expect(lines.some(l => l.includes('Pods.xcodeproj'))).toBe(false);
   });
 });
 

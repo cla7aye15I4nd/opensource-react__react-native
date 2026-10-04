@@ -1926,10 +1926,9 @@ function main(argv /*:: ?: Array<string> */) /*: void */ {
   //      link plugin frameworks this sync has not seen.
   // The phase distinguishes dir vs file with `-d`/`-f` at build time (no
   // markers). A listed path that later VANISHES forces a re-sync. Paths that do
-  // not exist yet go to .spm-sync-watch-absent instead, and one that APPEARS
-  // forces a re-sync. They stay out of .spm-sync-watch-paths because phases
-  // injected by older versions treat a missing path there as stale, which
-  // would re-sync on every build.
+  // not exist yet go to .spm-sync-watch-absent, where one that APPEARS forces a
+  // re-sync; they stay out of this file because phases from older versions
+  // treat a missing listed path as stale.
   const watchCandidates /*: Array<string> */ = [...entryAbsDirs.values()];
   for (const entry of entries) {
     const root = entry.root;
@@ -1945,13 +1944,13 @@ function main(argv /*:: ?: Array<string> */) /*: void */ {
       watchCandidates.push(path.join(appRoot, name, 'project.pbxproj'));
     }
   }
-  const uniqueWatchCandidates = Array.from(new Set(watchCandidates))
-    .filter(p => p.length > 0)
-    .sort();
-  const watchPaths = uniqueWatchCandidates.filter(p => fs.existsSync(p));
-  const absentWatchPaths = uniqueWatchCandidates.filter(
-    p => !watchPaths.includes(p),
-  );
+  const watchPaths /*: Array<string> */ = [];
+  const absentWatchPaths /*: Array<string> */ = [];
+  for (const p of Array.from(new Set(watchCandidates)).sort()) {
+    if (p.length > 0) {
+      (fs.existsSync(p) ? watchPaths : absentWatchPaths).push(p);
+    }
+  }
   fs.writeFileSync(
     path.join(outputDir, '.spm-sync-watch-paths'),
     watchPaths.join('\n') + (watchPaths.length > 0 ? '\n' : ''),

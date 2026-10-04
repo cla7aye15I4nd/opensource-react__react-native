@@ -148,8 +148,7 @@ A watched path that does not exist yet is watched for **appearing**. When it is
 created, the next build re-syncs. So a plugin that builds precompiled modules
 should list their output folder, even when a fresh clone does not have it yet.
 List only folders that the Xcode build itself does not write to, or every build
-re-syncs. Projects get this check after running `npx react-native spm update`
-once.
+re-syncs.
 
 Unlike `flavoredFrameworks`, watch paths are best-effort: a non-array is ignored
 with a warning (never fatal), and each non-string / empty / **relative** entry

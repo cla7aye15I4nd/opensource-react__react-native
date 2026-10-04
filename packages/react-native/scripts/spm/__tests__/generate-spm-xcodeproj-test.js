@@ -298,12 +298,11 @@ describe('sync scripts', () => {
     });
   });
 
-  describe('the absent-path staleness probe', () => {
-    // Runs the generated absent-path loop in isolation and prints STALE.
-    function probe(srcRoot) {
-      const loop = /^ABSENT_FILE=[\s\S]*?^fi$/m.exec(script)?.[0];
-      expect(loop).toBeDefined();
-      return execFileSync(
+  it('re-syncs when a path listed as absent appears', () => {
+    const loop = /^ABSENT_FILE=[\s\S]*?^fi$/m.exec(script)?.[0];
+    expect(loop).toBeDefined();
+    const probe = srcRoot =>
+      execFileSync(
         '/bin/bash',
         [
           '-c',
@@ -313,39 +312,26 @@ describe('sync scripts', () => {
         ],
         {encoding: 'utf8'},
       ).trim();
-    }
 
-    let root;
-    let absentFile;
-    let watched;
-
-    beforeEach(() => {
-      root = fs.mkdtempSync(path.join(os.tmpdir(), 'spm-sync-absent-'));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'spm-sync-absent-'));
+    try {
       const autolinkDir = path.join(root, 'build/generated/autolinking');
       fs.mkdirSync(autolinkDir, {recursive: true});
-      absentFile = path.join(autolinkDir, '.spm-sync-watch-absent');
-      watched = path.join(root, 'precompiled');
-    });
-
-    afterEach(() => {
-      fs.rmSync(root, {recursive: true, force: true});
-    });
-
-    it('is stale when a listed path has appeared', () => {
-      fs.writeFileSync(absentFile, `${watched}\n`);
+      const watched = path.join(root, 'precompiled');
       fs.mkdirSync(watched);
+      expect(probe(root)).toBe('0');
+
+      fs.writeFileSync(
+        path.join(autolinkDir, '.spm-sync-watch-absent'),
+        `${watched}\n`,
+      );
       expect(probe(root)).toBe('1');
-    });
 
-    it('is not stale while every listed path is still missing', () => {
-      fs.writeFileSync(absentFile, `${watched}\n`);
+      fs.rmdirSync(watched);
       expect(probe(root)).toBe('0');
-    });
-
-    it('is not stale when there is no absent-path file', () => {
-      fs.mkdirSync(watched);
-      expect(probe(root)).toBe('0');
-    });
+    } finally {
+      fs.rmSync(root, {recursive: true, force: true});
+    }
   });
 
   it('is deterministic, shared with the pre-action, and valid POSIX shell', () => {
