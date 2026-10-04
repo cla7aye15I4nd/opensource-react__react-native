@@ -298,6 +298,56 @@ describe('sync scripts', () => {
     });
   });
 
+  describe('the absent-path staleness probe', () => {
+    // Runs the generated absent-path loop in isolation and prints STALE.
+    function probe(srcRoot) {
+      const loop = /^ABSENT_FILE=[\s\S]*?^fi$/m.exec(script)?.[0];
+      expect(loop).toBeDefined();
+      return execFileSync(
+        '/bin/bash',
+        [
+          '-c',
+          `set -euo pipefail\nSRCROOT="$1"\nSTALE=0\n${String(loop)}\necho "$STALE"\n`,
+          'probe',
+          srcRoot,
+        ],
+        {encoding: 'utf8'},
+      ).trim();
+    }
+
+    let root;
+    let absentFile;
+    let watched;
+
+    beforeEach(() => {
+      root = fs.mkdtempSync(path.join(os.tmpdir(), 'spm-sync-absent-'));
+      const autolinkDir = path.join(root, 'build/generated/autolinking');
+      fs.mkdirSync(autolinkDir, {recursive: true});
+      absentFile = path.join(autolinkDir, '.spm-sync-watch-absent');
+      watched = path.join(root, 'precompiled');
+    });
+
+    afterEach(() => {
+      fs.rmSync(root, {recursive: true, force: true});
+    });
+
+    it('is stale when a listed path has appeared', () => {
+      fs.writeFileSync(absentFile, `${watched}\n`);
+      fs.mkdirSync(watched);
+      expect(probe(root)).toBe('1');
+    });
+
+    it('is not stale while every listed path is still missing', () => {
+      fs.writeFileSync(absentFile, `${watched}\n`);
+      expect(probe(root)).toBe('0');
+    });
+
+    it('is not stale when there is no absent-path file', () => {
+      fs.mkdirSync(watched);
+      expect(probe(root)).toBe('0');
+    });
+  });
+
   it('is deterministic, shared with the pre-action, and valid POSIX shell', () => {
     expect(buildSyncAutolinkingScript(baked)).toBe(script);
     expect(buildSchemePreActionScript(baked)).toBe(script);

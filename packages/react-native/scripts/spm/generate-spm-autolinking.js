@@ -1923,9 +1923,11 @@ function main(argv /*:: ?: Array<string> */) /*: void */ {
   //   3. Plugin-contributed paths (e.g. Expo's own Package.swift / per-module
   //      manifests) — already validated absolute in invokePlugins.
   // The phase distinguishes dir vs file with `-d`/`-f` at build time (no
-  // markers). The existsSync filter here is safe: these paths come from a
-  // successful sync so they exist now; a path that later VANISHES is caught at
-  // phase time against this file and forces a re-sync.
+  // markers). A listed path that later VANISHES forces a re-sync. Paths that do
+  // not exist yet go to .spm-sync-watch-absent instead, and one that APPEARS
+  // forces a re-sync. They stay out of .spm-sync-watch-paths because phases
+  // injected by older versions treat a missing path there as stale, which
+  // would re-sync on every build.
   const watchCandidates /*: Array<string> */ = [...entryAbsDirs.values()];
   for (const entry of entries) {
     const root = entry.root;
@@ -1936,12 +1938,21 @@ function main(argv /*:: ?: Array<string> */) /*: void */ {
     watchCandidates.push(path.join(root, '.react-native'));
   }
   watchCandidates.push(...pluginWatchPaths);
-  const watchPaths = Array.from(new Set(watchCandidates))
-    .filter(p => p.length > 0 && fs.existsSync(p))
+  const uniqueWatchCandidates = Array.from(new Set(watchCandidates))
+    .filter(p => p.length > 0)
     .sort();
+  const watchPaths = uniqueWatchCandidates.filter(p => fs.existsSync(p));
+  const absentWatchPaths = uniqueWatchCandidates.filter(
+    p => !watchPaths.includes(p),
+  );
   fs.writeFileSync(
     path.join(outputDir, '.spm-sync-watch-paths'),
     watchPaths.join('\n') + (watchPaths.length > 0 ? '\n' : ''),
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(outputDir, '.spm-sync-watch-absent'),
+    absentWatchPaths.join('\n') + (absentWatchPaths.length > 0 ? '\n' : ''),
     'utf8',
   );
 

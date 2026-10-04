@@ -1979,6 +1979,12 @@ describe('main() — .spm-sync-watch-paths emission', () => {
     // Deduped and sorted (stable, deterministic output).
     expect(new Set(lines).size).toBe(lines.length);
     expect([...lines].sort()).toEqual(lines);
+
+    // Absent paths are listed separately, so the build phase can re-sync
+    // when one of them appears.
+    expect(
+      fs.readFileSync(path.join(autolinkDir, '.spm-sync-watch-absent'), 'utf8'),
+    ).toBe(path.join(expoDir, 'MISSING.swift') + '\n');
   });
 });
 
