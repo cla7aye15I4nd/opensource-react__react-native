@@ -499,6 +499,22 @@ describe('deinit — scheme ownership', () => {
     expect(deinit().status).toBe('removed');
     expect(fs.existsSync(schemePath)).toBe(false);
   });
+
+  it('deletes its own scheme written with raw line breaks in the script', () => {
+    const {sync, deinit, schemePath, readScheme} = setUp();
+    sync();
+    fs.writeFileSync(
+      schemePath,
+      readScheme()
+        .replace(/&#10;/g, '\n')
+        .replace(/&#13;/g, '\r')
+        .replace(/&#9;/g, '\t'),
+      'utf8',
+    );
+
+    expect(deinit().status).toBe('removed');
+    expect(fs.existsSync(schemePath)).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------
