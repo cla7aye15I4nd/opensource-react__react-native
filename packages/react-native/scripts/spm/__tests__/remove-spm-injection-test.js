@@ -505,10 +505,9 @@ describe('deinit — scheme ownership', () => {
     sync();
     fs.writeFileSync(
       schemePath,
-      readScheme()
-        .replace(/&#10;/g, '\n')
-        .replace(/&#13;/g, '\r')
-        .replace(/&#9;/g, '\t'),
+      readScheme().replace(/&#(9|10|13);/g, (_, c) =>
+        String.fromCharCode(Number(c)),
+      ),
       'utf8',
     );
 

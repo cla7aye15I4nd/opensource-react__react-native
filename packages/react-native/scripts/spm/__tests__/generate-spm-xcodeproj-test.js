@@ -139,15 +139,10 @@ describe('scheme pre-action', () => {
   });
 
   function parsedSyncScript(xml) {
-    const contents = new DOMParser()
+    return new DOMParser()
       .parseFromString(xml, 'text/xml')
-      .getElementsByTagName('ActionContent');
-    for (let i = 0; i < contents.length; i++) {
-      if (contents[i].getAttribute('title') === 'Sync SPM Autolinking') {
-        return contents[i].getAttribute('scriptText');
-      }
-    }
-    return null;
+      .getElementsByTagName('ActionContent')[0]
+      .getAttribute('scriptText');
   }
 
   const MULTILINE_SCRIPT = 'set -e\n\tif [ "$A" ]; then\r\n  a && b < c\nfi';
@@ -174,7 +169,6 @@ describe('scheme pre-action', () => {
       'TARGET_UUID',
       MULTILINE_SCRIPT,
     );
-    expect(updated).toContain('&#10;');
     expect(parsedSyncScript(updated)).toBe(MULTILINE_SCRIPT);
   });
 

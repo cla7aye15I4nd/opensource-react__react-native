@@ -2518,11 +2518,8 @@ function injectSpmIntoExistingXcodeproj(
   return {status: 'injected', target: plan.target.name};
 }
 
-/**
- * The scheme with the sync pre-action's scriptText emptied, or null when the
- * scheme has none. Cutting the raw value keeps the comparison independent of
- * how an older RN version encoded the script.
- */
+// The scheme with the sync pre-action's scriptText emptied, so the compare
+// ignores how the script was encoded; null when there is no pre-action.
 function withoutPreActionScript(xml /*: string */) /*: ?string */ {
   const titleIdx = xml.indexOf('title = "Sync SPM Autolinking"');
   if (titleIdx < 0) {
