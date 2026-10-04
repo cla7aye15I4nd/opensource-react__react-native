@@ -1167,14 +1167,14 @@ const DEBUG_LIST_SETTINGS = [
 ];
 
 /**
- * The generated xcconfig every app configuration in `configs` is based on: all
- * of the React build settings, shared by every configuration, with the
+ * The generated xcconfig every app configuration in `configNames` is based on:
+ * all of the React build settings, shared by every configuration, with the
  * flavor-specific ones conditioned on each configuration's own name. List
  * settings extend `$(inherited)`, the project-level value; a target's own
  * value still outranks all of them (see listSettingsHidingXcconfig).
  */
 function generateReactNativeXcconfig(
-  configs /*: ReadonlyArray<{uuid: string, name: string}> */,
+  configNames /*: ReadonlyArray<string> */,
   reactNativePathFromSrcRoot /*: string */,
   flavoredFrameworks /*: ReadonlyArray<FlavoredFrameworkManifestEntry> */,
 ) /*: string */ {
@@ -1192,7 +1192,7 @@ function generateReactNativeXcconfig(
     [...REACT_LIST_SETTINGS, ...frameworkListSettings(flavoredFrameworks)]
       .filter(({values}) => values.length > 0)
       .map(({key, values}) => listLine(key, values)),
-    configs.flatMap(({name}) => {
+    configNames.flatMap(name => {
       const flavor = flavorForBuildConfiguration(name);
       return [
         `RN_SPM_FLAVOR[config=${name}] = ${flavor}`,
@@ -1221,16 +1221,12 @@ function xcconfigFileRefUuid(rootUuid /*: string */) /*: string */ {
 function buildSettingsRange(
   text /*: string */,
   configUuid /*: string */,
-) /*: ?{uuid: string, bodyOpen: number, bodyClose: number} */ {
+) /*: ?{bodyOpen: number, bodyClose: number} */ {
   const config = findObjectByUuid(text, configUuid);
   const settings =
     config != null ? findField(text, config, 'buildSettings') : null;
   return settings != null
-    ? {
-        uuid: configUuid,
-        bodyOpen: settings.valueStart,
-        bodyClose: settings.tokenEnd - 1,
-      }
+    ? {bodyOpen: settings.valueStart, bodyClose: settings.tokenEnd - 1}
     : null;
 }
 
@@ -1620,10 +1616,7 @@ function injectSpmIntoPbxproj(
   }
   const generatedFiles /*: {[string]: string} */ = {
     [GENERATED_XCCONFIG_PATH]: generateReactNativeXcconfig(
-      plan.configUuids.map(uuid => ({
-        uuid,
-        name: buildConfigurationName(text, uuid),
-      })),
+      plan.configUuids.map(uuid => buildConfigurationName(text, uuid)),
       reactNativePaths.fromSrcRoot,
       flavoredFrameworks,
     ),
@@ -1926,7 +1919,6 @@ function injectSpmIntoPbxproj(
   };
 }
 
-/** The project's main (root navigator) group. */
 function mainGroupObject(
   text /*: string */,
 ) /*: ?{uuid: string, bodyOpen: number, bodyClose: number} */ {

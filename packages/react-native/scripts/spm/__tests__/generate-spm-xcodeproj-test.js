@@ -361,13 +361,11 @@ describe('configuration-driven framework settings', () => {
 
 describe('generateReactNativeXcconfig', () => {
   const DEVICE_ONLY = {...FRAMEWORK, slices: [FRAMEWORK.slices[0]]};
-  const configs = names =>
-    names.map((name, i) => ({uuid: `AA00000000000000000009${i}0`, name}));
 
   it('writes every setting the app target needs, extending inherited lists', () => {
     expect(
       generateReactNativeXcconfig(
-        configs(['Debug', 'Release']),
+        ['Debug', 'Release'],
         '../node_modules/react-native',
         [DEVICE_ONLY],
       ),
@@ -395,14 +393,14 @@ RN_SPM_REACT_SEARCH_PATH[sdk=iphoneos*] = $(SRCROOT)/build/xcframeworks/$(RN_SPM
   });
 
   it('anchors REACT_NATIVE_PATH on SRCROOT itself when react-native sits there', () => {
-    expect(
-      generateReactNativeXcconfig(configs(['Debug']), '', [FRAMEWORK]),
-    ).toContain('\nREACT_NATIVE_PATH = $(SRCROOT)\n');
+    expect(generateReactNativeXcconfig(['Debug'], '', [FRAMEWORK])).toContain(
+      '\nREACT_NATIVE_PATH = $(SRCROOT)\n',
+    );
   });
 
   it("conditions the flavor on the project's own configuration names", () => {
     const xcconfig = generateReactNativeXcconfig(
-      configs(['Development', 'Staging']),
+      ['Development', 'Staging'],
       '../node_modules/react-native',
       [FRAMEWORK],
     );
@@ -419,7 +417,7 @@ RN_SPM_REACT_SEARCH_PATH[sdk=iphoneos*] = $(SRCROOT)/build/xcframeworks/$(RN_SPM
 
   it('writes no plist quoting around conditional keys or path values', () => {
     const xcconfig = generateReactNativeXcconfig(
-      configs(['Debug']),
+      ['Debug'],
       '../node_modules/react-native',
       [FRAMEWORK],
     );
