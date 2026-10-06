@@ -1145,6 +1145,7 @@ void facebook::react::parseUnprocessedBackgroundImageList(const facebook::react:
 void facebook::react::parseUnprocessedBackgroundImageString(const std::string& value, std::vector<facebook::react::BackgroundImage>& result);
 void facebook::react::parseUnprocessedFontVariant(const facebook::react::PropsParserContext& context, const facebook::react::RawValue& value, facebook::react::FontVariant& result);
 void facebook::react::parseUnprocessedFontVariantString(const std::string& value, facebook::react::FontVariant& result);
+void facebook::react::parseUnprocessedTransformOriginString(const std::string& value, facebook::react::TransformOrigin& result);
 void facebook::react::reactAndroidLoggingHook(const std::string& message, unsigned int logLevel);
 void facebook::react::registerCxxModuleToGlobalModuleMap(std::string name, std::function<std::shared_ptr<facebook::react::TurboModule>(std::shared_ptr<facebook::react::CallInvoker> jsInvoker)> moduleProviderFunc);
 void facebook::react::serializeTransformAxis(const facebook::react::TransformOperation& operation, const std::string& operationName, float defaultValue, folly::dynamic& resultTranslateArray);
