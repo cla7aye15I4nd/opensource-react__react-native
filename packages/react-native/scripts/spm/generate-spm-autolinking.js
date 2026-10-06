@@ -1910,7 +1910,7 @@ function main(argv /*:: ?: Array<string> */) /*: void */ {
   log(`Generated: ${path.relative(appRoot, outputPath)}`);
 
   // .spm-sync-watch-paths: absolute paths (dirs OR files) the Xcode auto-sync
-  // build phase watches for staleness. Four kinds of input, mixed freely:
+  // build phase watches for staleness. Three kinds of input, mixed freely:
   //   1. Each module's source dir (entryAbsDirs) — a dir; adding/removing a
   //      child bumps its mtime so `find -newer` trips and the `sources:`
   //      allowlist regenerates.
@@ -1920,10 +1920,10 @@ function main(argv /*:: ?: Array<string> */) /*: void */ {
   //      stale until an unrelated install triggers a sync. The dep ROOT is
   //      threaded through the entry (entry.root, from the autolinking model),
   //      not derived by walking up from the (possibly nested) source dir.
+  //      Both are listed even when absent: one that appears later (e.g. after
+  //      `spm scaffold`) changes self-managed detection and needs a re-sync.
   //   3. Plugin-contributed paths (e.g. Expo's own Package.swift / per-module
   //      manifests) — already validated absolute in invokePlugins.
-  //   4. The app's top-level `project.pbxproj` — a pulled project file can
-  //      link plugin frameworks this sync has not seen.
   // The phase distinguishes dir vs file with `-d`/`-f` at build time (no
   // markers). A listed path that later VANISHES forces a re-sync. Paths that do
   // not exist yet go to .spm-sync-watch-absent, where one that APPEARS forces a
@@ -1939,11 +1939,6 @@ function main(argv /*:: ?: Array<string> */) /*: void */ {
     watchCandidates.push(path.join(root, '.react-native'));
   }
   watchCandidates.push(...pluginWatchPaths);
-  for (const name of fs.readdirSync(appRoot)) {
-    if (name.endsWith('.xcodeproj')) {
-      watchCandidates.push(path.join(appRoot, name, 'project.pbxproj'));
-    }
-  }
   const watchPaths /*: Array<string> */ = [];
   const absentWatchPaths /*: Array<string> */ = [];
   for (const p of Array.from(new Set(watchCandidates)).sort()) {
