@@ -692,6 +692,9 @@ fi`;
 // Runtime framework slots are never touched here; add/update owns them.
 function syncStaleCheckAndDispatch() /*: string */ {
   return `STAMP="$SRCROOT/build/generated/autolinking/.spm-sync-stamp"
+PLUGIN_MISMATCH="$SRCROOT/build/generated/autolinking/.spm-plugin-mismatch"
+PLUGIN_FRAMEWORKS="$SRCROOT/build/generated/autolinking/.spm-plugin-flavored-frameworks.json"
+MARKER="\${PROJECT_FILE_PATH:-}/${SPM_INJECTED_MARKER}"
 STALE=0
 
 # Find project root (where package.json lives — may be an ancestor of SRCROOT)
@@ -703,10 +706,12 @@ if [ ! -f "$PROJECT_ROOT/package.json" ]; then
   PROJECT_ROOT="$SRCROOT"
 fi
 
-# Check 1: dependency inputs (covers app projects after any package manager install)
+# Check 1: dependency inputs (covers app projects after any package manager
+# install), and the marker, which records the frameworks the project links.
 for INPUT in \\
   "$PROJECT_ROOT/package.json" \\
-  "$PROJECT_ROOT/react-native.config.js"; do
+  "$PROJECT_ROOT/react-native.config.js" \\
+  "$MARKER"; do
   if [ -f "$INPUT" ] && [ "$INPUT" -nt "$STAMP" ]; then
     STALE=1
     break
@@ -800,6 +805,20 @@ if [ "$STALE" -eq 0 ] && [ -f "$STAMP" ]; then
 fi
 
 if [ ! -f "$STAMP" ]; then
+  STALE=1
+fi
+
+# The last sync found a plugin framework mismatch and kept its errors. Until an
+# input changes, report them again instead of re-running sync: the scheme
+# pre-action and this build phase would otherwise both run it. spm add/update
+# rewrite the plugin manifest without a sync, so that counts as a change too.
+if [ -f "$PLUGIN_MISMATCH" ]; then
+  if [ "$STALE" -eq 0 ] && \\
+    [ ! "$MARKER" -nt "$PLUGIN_MISMATCH" ] && \\
+    [ ! "$PLUGIN_FRAMEWORKS" -nt "$PLUGIN_MISMATCH" ]; then
+    cat "$PLUGIN_MISMATCH" >&2
+    exit 1
+  fi
   STALE=1
 fi
 
@@ -2224,7 +2243,7 @@ function readScriptPhasesManifest(
  */
 function readMarker(
   xcodeprojPath /*: string */,
-) /*: ?{targetUuid?: ?string, generatedSources?: {[string]: Array<string>}, scriptPhases?: {[string]: string}, artifactsVersionOverride?: ?string, configCommand?: ?Array<string>, buildSettingChanges?: Array<BuildSettingChange>, createdArrayFields?: Array<CreatedArrayField>, scheme?: {file?: ?string, created?: ?boolean}, ...} */ {
+) /*: ?{targetUuid?: ?string, generatedSources?: {[string]: Array<string>}, scriptPhases?: {[string]: string}, linkedFrameworks?: Array<{id: string, frameworkName: string}>, artifactsVersionOverride?: ?string, configCommand?: ?Array<string>, buildSettingChanges?: Array<BuildSettingChange>, createdArrayFields?: Array<CreatedArrayField>, scheme?: {file?: ?string, created?: ?boolean}, ...} */ {
   const markerPath = path.join(xcodeprojPath, SPM_INJECTED_MARKER);
   try {
     // $FlowFixMe[incompatible-return] JSON.parse returns any
@@ -2261,18 +2280,95 @@ function findInjectedXcodeproj(appRoot /*: string */) /*: string | null */ {
 }
 
 class PluginFrameworkMismatchError extends Error {
-  constructor() {
+  /*:: problems: Array<string>; */
+  constructor(problems /*: Array<string> */) {
     super(
-      'The Xcode project does not link the frameworks autolinking plugins ' +
-        'provide. Run `npx react-native spm` to update the project.',
+      'The precompiled frameworks that autolinking plugins provide differ ' +
+        'from the frameworks that the Xcode project links.',
     );
     this.name = 'PluginFrameworkMismatchError';
+    this.problems = problems;
   }
+}
+
+/**
+ * The frameworks the project links: the setting prefix of every one, and the
+ * names of the plugin ones. For an older marker they come from the embed
+ * phase: null without one, and null names when the frameworks manifest that
+ * tells plugin names from built-in ones is missing.
+ */
+function readLinkedFrameworks(
+  appRoot /*: string */,
+  xcodeprojPath /*: string */,
+) /*: ?{settingPrefixes: Set<string>, pluginNames: ?Set<string>} */ {
+  const builtinIds = new Set(BUILTIN_FRAMEWORKS.map(({id}) => id));
+  const recorded = readMarker(xcodeprojPath)?.linkedFrameworks;
+  if (recorded != null) {
+    return {
+      settingPrefixes: new Set(
+        recorded.map(framework => frameworkSettingPrefix(framework.id)),
+      ),
+      pluginNames: new Set(
+        recorded
+          .filter(framework => !builtinIds.has(framework.id))
+          .map(framework => framework.frameworkName),
+      ),
+    };
+  }
+
+  // Markers written before `linkedFrameworks` existed: read the embed phase.
+  const text = fs.readFileSync(
+    path.join(xcodeprojPath, 'project.pbxproj'),
+    'utf8',
+  );
+  const rootUuid = findProjectObject(text)?.uuid;
+  if (rootUuid == null) {
+    return null;
+  }
+  const embedPhase = findObjectByUuid(
+    text,
+    namespacedUUID(
+      rootUuid,
+      'PBXShellScriptBuildPhase',
+      'EmbedFlavoredFrameworks',
+    ),
+  );
+  if (embedPhase == null) {
+    return null;
+  }
+
+  const inputs = findField(text, embedPhase, 'inputPaths')?.value ?? '';
+  const outputs = findField(text, embedPhase, 'outputPaths')?.value ?? '';
+  const settingPrefixes = new Set(
+    Array.from(inputs.matchAll(/\$\((RN_SPM_\w+)_FRAMEWORK\)/g), m => m[1]),
+  );
+  // Built-in framework names come from the staged manifest. Without it, only
+  // setting prefixes are compared: a missing manifest is not a plugin mismatch.
+  if (
+    !fs.existsSync(
+      path.join(appRoot, 'build', 'xcframeworks', FLAVORED_FRAMEWORKS_MANIFEST),
+    )
+  ) {
+    return {settingPrefixes, pluginNames: null};
+  }
+  const builtinNames = new Set(
+    readFlavoredFrameworksManifest(appRoot)
+      .frameworks.filter(framework => builtinIds.has(framework.id))
+      .map(framework => framework.frameworkName),
+  );
+  const pluginNames = new Set(
+    Array.from(outputs.matchAll(/([^/"\n]+)\.framework\b/g), m => m[1]).filter(
+      name => !builtinNames.has(name),
+    ),
+  );
+  return {settingPrefixes, pluginNames};
 }
 
 /**
  * Only `spm add` / `spm update` change what the project links, so the
  * build-time sync reports a plugin framework mismatch instead of fixing it.
+ * The committed project is the team's contract: every machine precompiles the
+ * frameworks it links.
  */
 function assertPluginFrameworksLinked(
   appRoot /*: string */,
@@ -2288,51 +2384,9 @@ function assertPluginFrameworksLinked(
   if (xcodeprojPath == null) {
     return;
   }
-  const text = fs.readFileSync(
-    path.join(xcodeprojPath, 'project.pbxproj'),
-    'utf8',
-  );
-  const rootUuid = findProjectObject(text)?.uuid;
-  if (rootUuid == null) {
+  const linked = readLinkedFrameworks(appRoot, xcodeprojPath);
+  if (linked == null) {
     return;
-  }
-  const embedPhase = findObjectByUuid(
-    text,
-    namespacedUUID(
-      rootUuid,
-      'PBXShellScriptBuildPhase',
-      'EmbedFlavoredFrameworks',
-    ),
-  );
-  if (embedPhase == null) {
-    return;
-  }
-
-  const inputs = findField(text, embedPhase, 'inputPaths')?.value ?? '';
-  const outputs = findField(text, embedPhase, 'outputPaths')?.value ?? '';
-  const linkedPrefixes = new Set(
-    Array.from(inputs.matchAll(/\$\((RN_SPM_\w+)_FRAMEWORK\)/g), m => m[1]),
-  );
-  // Built-in framework names come from the staged manifest. Without it, only
-  // setting prefixes are compared: a missing manifest is not a plugin mismatch.
-  let linkedPluginNames /*: ?Set<string> */ = null;
-  if (
-    fs.existsSync(
-      path.join(appRoot, 'build', 'xcframeworks', FLAVORED_FRAMEWORKS_MANIFEST),
-    )
-  ) {
-    const builtinIds = new Set(BUILTIN_FRAMEWORKS.map(({id}) => id));
-    const builtinNames = new Set(
-      readFlavoredFrameworksManifest(appRoot)
-        .frameworks.filter(framework => builtinIds.has(framework.id))
-        .map(framework => framework.frameworkName),
-    );
-    linkedPluginNames = new Set(
-      Array.from(
-        outputs.matchAll(/([^/"\n]+)\.framework\b/g),
-        m => m[1],
-      ).filter(name => !builtinNames.has(name)),
-    );
   }
 
   const pluginFrameworks = readPluginFrameworks(appRoot);
@@ -2342,24 +2396,31 @@ function assertPluginFrameworksLinked(
   const problems /*: Array<string> */ = [];
   for (const {id, frameworkName} of pluginFrameworks) {
     if (
-      !linkedPrefixes.has(frameworkSettingPrefix(id)) ||
-      linkedPluginNames?.has(frameworkName) === false
+      !linked.settingPrefixes.has(frameworkSettingPrefix(id)) ||
+      linked.pluginNames?.has(frameworkName) === false
     ) {
       problems.push(
-        `error: ${frameworkName} (${id}) is a precompiled framework from an autolinking plugin, but the Xcode project does not link it. Run \`npx react-native spm\` to update the project.`,
+        `error: ${frameworkName} (${id}) is a precompiled framework from an autolinking plugin, but the Xcode project does not link it. Run \`npx react-native spm update\` to add ${frameworkName} to the committed project for the whole team.`,
       );
     }
   }
-  for (const frameworkName of linkedPluginNames ?? []) {
+  if (linked.pluginNames == null) {
+    console.warn(
+      'warning: Skipped the check for frameworks that the Xcode project links but no plugin provides. The project does not record them in .spm-injected.json, and build/xcframeworks/flavored-frameworks.json is missing. Run `npx react-native spm update` to record them.',
+    );
+  }
+  for (const frameworkName of linked.pluginNames ?? []) {
     if (!pairedNames.has(frameworkName)) {
+      // Precompiling changes no input the build checks, so the recorded
+      // error stays until sync runs again.
       problems.push(
-        `error: The Xcode project links ${frameworkName}.framework, but no autolinking plugin provides it on this machine. Precompile ${frameworkName}, or run \`npx react-native spm\` to update the project.`,
+        `error: The Xcode project links ${frameworkName}.framework, but no autolinking plugin provides it on this machine. Running \`npx react-native spm update\` removes ${frameworkName} from the committed project for the whole team. Instead, precompile ${frameworkName}, then run \`npx react-native spm sync\`.`,
       );
     }
   }
   if (problems.length > 0) {
     problems.forEach(problem => console.error(problem));
-    throw new PluginFrameworkMismatchError();
+    throw new PluginFrameworkMismatchError(problems);
   }
 }
 
@@ -2606,6 +2667,12 @@ function injectSpmIntoExistingXcodeproj(
         // Plugin phase id → its PBXShellScriptBuildPhase UUID, reconciled the
         // same way.
         scriptPhases: scriptPhaseUuids,
+        // What the embed phase links. The build-time sync compares it with
+        // the frameworks plugins provide, and re-runs when it changes.
+        linkedFrameworks: flavoredFrameworks.map(({id, frameworkName}) => ({
+          id,
+          frameworkName,
+        })),
         artifactsVersionOverride,
         configCommand,
         scheme: {

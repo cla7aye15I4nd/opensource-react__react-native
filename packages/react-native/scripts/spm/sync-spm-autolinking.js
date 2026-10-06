@@ -32,7 +32,8 @@
  *   2. Calls generate-spm-autolinking.js → build/generated/autolinking/Package.swift
  *   3. Rebuilds the generated-headers farm
  *   4. Fails when the Xcode project does not link exactly the precompiled
- *      frameworks autolinking plugins provide (only `spm update` fixes that)
+ *      frameworks autolinking plugins provide, and records the errors in
+ *      build/generated/autolinking/.spm-plugin-mismatch for later builds
  *   5. Writes build/generated/autolinking/.spm-sync-stamp
  *
  * Runtime frameworks are deliberately not downloaded or regenerated from an
@@ -40,8 +41,14 @@
  * the app target's linker/embed configuration.
  */
 
-const {main: generateAutolinking} = require('./generate-spm-autolinking');
-const {assertPluginFrameworksLinked} = require('./generate-spm-xcodeproj');
+const {
+  MissingManifestError,
+  main: generateAutolinking,
+} = require('./generate-spm-autolinking');
+const {
+  PluginFrameworkMismatchError,
+  assertPluginFrameworksLinked,
+} = require('./generate-spm-xcodeproj');
 const {
   RemoteVersionError,
   buildPerAppHeaderTree,
@@ -134,21 +141,27 @@ async function main(
     autolinkingArgv.push('--ios-deployment-target', iosDeploymentTarget);
   }
   deps.generateAutolinking(autolinkingArgv);
-  const stampPath = path.join(
+  const autolinkingDir = path.join(
     appRoot,
     'build',
     'generated',
     'autolinking',
-    '.spm-sync-stamp',
   );
-  // Without a stamp every build re-runs sync and fails until the project is
-  // updated; an earlier stamp would let the next build skip it.
+  const stampPath = path.join(autolinkingDir, '.spm-sync-stamp');
+  const mismatchPath = path.join(autolinkingDir, '.spm-plugin-mismatch');
   try {
     deps.assertPluginFrameworksLinked(appRoot);
   } catch (e) {
-    fs.rmSync(stampPath, {force: true});
+    if (e instanceof PluginFrameworkMismatchError) {
+      // The build phase prints the recorded errors and fails until an input
+      // changes, so these inputs count as synced.
+      fs.mkdirSync(autolinkingDir, {recursive: true});
+      fs.writeFileSync(mismatchPath, e.problems.join('\n') + '\n', 'utf8');
+      writeStamp(stampPath);
+    }
     throw e;
   }
+  fs.rmSync(mismatchPath, {force: true});
 
   // Rebuild the per-app generated-headers farm (vended as the ReactAppHeaders
   // SPM target inside the codegen package). React core headers need no trees
@@ -158,24 +171,33 @@ async function main(
   // so no path-locator JSON is written.
   deps.buildPerAppHeaderTree(appRoot, {log});
 
-  fs.mkdirSync(path.dirname(stampPath), {recursive: true});
-  fs.writeFileSync(stampPath, new Date().toISOString() + '\n', 'utf8');
+  writeStamp(stampPath);
   log('SPM autolinking sync complete.');
 }
 
-if (require.main === module) {
-  main().catch(e => {
-    if (e instanceof RemoteVersionError) {
-      // Clean message + exit 2 (the build phase hard-fails on it) instead of a
-      // stack trace, matching how setup-apple-spm.js surfaces remote-mode
-      // version errors.
-      log(e.message);
-      process.exitCode = 2;
-      return;
-    }
-    console.error(e);
-    process.exitCode = 1;
-  });
+function writeStamp(stampPath /*: string */) /*: void */ {
+  fs.mkdirSync(path.dirname(stampPath), {recursive: true});
+  fs.writeFileSync(stampPath, new Date().toISOString() + '\n', 'utf8');
 }
 
-module.exports = {main};
+function reportFailure(e /*: unknown */) /*: void */ {
+  if (
+    e instanceof RemoteVersionError ||
+    e instanceof MissingManifestError ||
+    e instanceof PluginFrameworkMismatchError
+  ) {
+    // Clean message + exit 2 (the build phase hard-fails on it) instead of a
+    // stack trace, matching how setup-apple-spm.js surfaces these errors.
+    log(e.message);
+    process.exitCode = 2;
+    return;
+  }
+  console.error(e);
+  process.exitCode = 1;
+}
+
+if (require.main === module) {
+  main().catch(reportFailure);
+}
+
+module.exports = {main, reportFailure};

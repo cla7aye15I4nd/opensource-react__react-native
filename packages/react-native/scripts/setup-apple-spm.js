@@ -34,9 +34,10 @@
  *                              .spm-injected.json) and drop the marker.
  *   scaffold                   Generate Package.swift for community deps that
  *                              lack SPM support.
- *   sync / codegen / download  Advanced/internal: `sync` is invoked by the
- *                              generated Xcode build phase; `codegen` and
- *                              `download` run a single pipeline step.
+ *   sync                       Re-run the build-time autolinking sync and its
+ *                              checks. The generated Xcode build phase runs
+ *                              it; run it by hand after precompiling a module.
+ *   codegen / download         Advanced/internal: run a single pipeline step.
  *
  * Zero-arg `npx react-native spm` auto-detects: a freshly-scaffolded CocoaPods
  * project (clean tree, stock Podfile) → `add --deintegrate`; an injected
