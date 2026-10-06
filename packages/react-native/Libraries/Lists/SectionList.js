@@ -258,8 +258,7 @@ export default class SectionList<
         {...restProps}
         stickySectionHeadersEnabled={stickySectionHeadersEnabled}
         ref={this._captureRef}
-        // $FlowFixMe[missing-local-annot]
-        getItemCount={items => items.length}
+        getItemCount={(items: ReadonlyArray<ItemT>) => items.length}
         // $FlowFixMe[missing-local-annot]
         getItem={(items, index) => items[index]}
       />
