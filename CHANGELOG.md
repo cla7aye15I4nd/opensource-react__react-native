@@ -1,5 +1,110 @@
 # Changelog
 
+## v0.88.0-rc.4
+
+### Breaking
+
+
+
+#### Android specific
+
+
+
+#### iOS specific
+
+
+
+### Added
+
+
+
+#### Android specific
+
+
+
+#### iOS specific
+
+
+
+### Changed
+
+- Allow module augmentation to extend generated props and style types ([447ccd1ddb](https://github.com/react/react-native/commit/447ccd1ddbf3b9d95ce5e54410d7a5a54ce9bade) by [@zoontek](https://github.com/zoontek))
+
+#### Android specific
+
+
+
+#### iOS specific
+
+
+
+### Deprecated
+
+
+
+#### Android specific
+
+
+
+#### iOS specific
+
+
+
+### Removed
+
+
+
+#### Android specific
+
+
+
+#### iOS specific
+
+
+
+### Fixed
+
+
+
+#### Android specific
+
+- Properly enable Pressable after `disabled` prop resets from `true` ([357b6998c4](https://github.com/react/react-native/commit/357b6998c4df940f2450448a20478b11deaf741b) by [@fabriziocucci](https://github.com/fabriziocucci))
+
+#### iOS specific
+
+
+
+### Security
+
+
+
+#### Android specific
+
+
+
+#### iOS specific
+
+
+
+### Unknown
+
+- Release 0.88.0-rc.4 ([62e60c3521](https://github.com/react/react-native/commit/62e60c352147d2fcc08e3ee87d4b6c8f56d11d5e) by [@react-native-bot](https://github.com/react-native-bot))
+- Bump Podfile.lock ([600715184a](https://github.com/react/react-native/commit/600715184a0c80579c14c666d593f595f0a33ae1) by [@react-native-bot](https://github.com/react-native-bot))
+- Release 0.88.0-rc.3 ([0782c61fe6](https://github.com/react/react-native/commit/0782c61fe6cf0dd566ed83d6b7600c80ef75b490) by [@react-native-bot](https://github.com/react-native-bot))
+
+#### Android Unknown
+
+
+
+#### iOS Unknown
+
+
+
+#### Failed to parse
+
+
+
+
 ## v0.88.0-rc.3
 
 ### Changed
