@@ -22,9 +22,8 @@
 
 using namespace facebook::react;
 
-// Preserve RNTester's existing example bounds on compact bottom-tab layouts.
+// Preserve RNTester's existing example top bound on compact bottom-tab layouts.
 static constexpr CGFloat LegacyTopInset = 50;
-static constexpr CGFloat LegacyBottomInset = 65;
 
 /**
  * A tab's view controller, which reports when the tab bar or window changes
@@ -221,7 +220,7 @@ static constexpr CGFloat LegacyBottomInset = 65;
       CGRectGetMaxY(tabBarFrame) >= CGRectGetMaxY(bounds);
   if (hasBottomTabBar) {
     insets.top = MAX(insets.top, LegacyTopInset);
-    insets.bottom = MIN(insets.bottom, LegacyBottomInset);
+    // Keep the full bottom inset: anything less leaves content under the tab bar, where taps switch tabs.
   } else {
     insets.bottom = 0;
     // A window with no status bar along the top, such as the iPhone Duo's, reports no top inset. Keep
