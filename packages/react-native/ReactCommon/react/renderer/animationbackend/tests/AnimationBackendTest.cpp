@@ -36,6 +36,8 @@ class RecordingUIManagerDelegate : public UIManagerDelegate {
     synchronousUpdates.emplace(tag, props);
   }
 
+  void uiManagerShouldSynchronouslyUpdateAnimatedProps(
+      const std::unordered_map<Tag, AnimatedProps>& /*updates*/) override {}
   void uiManagerDidFinishTransaction(
       std::shared_ptr<const MountingCoordinator> /*mountingCoordinator*/,
       bool /*mountSynchronously*/) override {}
