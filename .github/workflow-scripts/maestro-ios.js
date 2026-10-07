@@ -9,10 +9,11 @@
 
 const childProcess = require('child_process');
 const fs = require('fs');
+const {filterFlowsByTags} = require('./maestro-android');
 
 const usage = `
 === Usage ===
-node maestro-ios.js <path to app> <app_id> <maestro_flow> <jsengine> <flavor> <working_directory> [device_model] [device_os]
+node maestro-ios.js <path to app> <app_id> <maestro_flow> <jsengine> <flavor> <working_directory> [device_model] [device_os] [exclude_tags]
 
 @param {string} appPath - Path to the app APK
 @param {string} appId - App ID that needs to be launched
@@ -22,6 +23,7 @@ node maestro-ios.js <path to app> <app_id> <maestro_flow> <jsengine> <flavor> <w
 @param {string} workingDirectory - Working directory from where to run Metro
 @param {string} deviceModel - Optional Maestro device model, such as iPhone-17-Pro
 @param {string} deviceOS - Optional Maestro device OS, such as iOS-26-2
+@param {string} excludeTags - Optional comma-separated flow tags to exclude
 ==============
 `;
 
@@ -215,7 +217,13 @@ async function executeFlowWithRetries(
   }
 }
 
-async function executeFlows(appId, udid, maestroFlow, jsengine) {
+async function executeFlows(
+  appId,
+  udid,
+  maestroFlow,
+  jsengine,
+  excludeTags = [],
+) {
   if (!fs.existsSync(maestroFlow) || !fs.lstatSync(maestroFlow).isDirectory()) {
     await executeFlowWithRetries(appId, udid, maestroFlow, jsengine, 1);
     return;
@@ -229,15 +237,18 @@ async function executeFlows(appId, udid, maestroFlow, jsengine) {
       if (file === 'helpers') {
         continue;
       }
-      await executeFlows(appId, udid, filePath, jsengine);
+      await executeFlows(appId, udid, filePath, jsengine, excludeTags);
     } else if (file.endsWith('.yml') || file.endsWith('.yaml')) {
+      if (filterFlowsByTags([filePath], excludeTags).length === 0) {
+        continue;
+      }
       await executeFlowWithRetries(appId, udid, filePath, jsengine, 1);
     }
   }
 }
 
 async function main(args = process.argv.slice(2)) {
-  if (args.length < 6 || args.length > 8) {
+  if (args.length < 6 || args.length > 9) {
     throw new Error(`Invalid number of arguments.\n${usage}`);
   }
 
@@ -249,6 +260,10 @@ async function main(args = process.argv.slice(2)) {
   const workingDirectory = args[5];
   const deviceModel = args[6] || null;
   const deviceOS = args[7] || null;
+  const excludeTags = (args[8] ?? '')
+    .split(',')
+    .map(tag => tag.trim())
+    .filter(Boolean);
 
   console.info('\n==============================');
   console.info('Running tests for iOS with the following parameters:');
@@ -260,6 +275,7 @@ async function main(args = process.argv.slice(2)) {
   console.info(`WORKING_DIRECTORY: ${workingDirectory}`);
   console.info(`DEVICE_MODEL: ${deviceModel ?? '<automatic>'}`);
   console.info(`DEVICE_OS: ${deviceOS ?? '<automatic>'}`);
+  console.info(`EXCLUDE_TAGS: ${excludeTags.join(',') || '<none>'}`);
   console.info('==============================\n');
 
   const simulator = findAvailableSimulator(deviceModel, deviceOS);
@@ -267,7 +283,7 @@ async function main(args = process.argv.slice(2)) {
   installAppOnSimulator(appPath, simulator.udid);
   bringSimulatorInForeground();
   await launchAppOnSimulator(appId, simulator.udid, isDebug);
-  await executeFlows(appId, simulator.udid, maestroFlow, jsengine);
+  await executeFlows(appId, simulator.udid, maestroFlow, jsengine, excludeTags);
   console.log('Test finished');
 }
 

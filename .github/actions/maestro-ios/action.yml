@@ -26,6 +26,10 @@ inputs:
     required: false
     default: ''
     description: Maestro device OS name, such as iOS-26-2
+  exclude-tags:
+    required: false
+    default: ''
+    description: Comma-separated flow tags to exclude from the test run
 
 runs:
   using: composite
@@ -73,7 +77,8 @@ runs:
           "${{ inputs.flavor }}" \
           "${{ inputs.working-directory }}" \
           "${{ inputs.device-model }}" \
-          "${{ inputs.device-os }}"
+          "${{ inputs.device-os }}" \
+          "${{ inputs.exclude-tags }}"
     - name: Store video record
       if: always()
       uses: ./.github/actions/upload-artifact
