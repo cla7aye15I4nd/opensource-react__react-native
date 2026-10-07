@@ -46,9 +46,6 @@ jobs:
           flavor: ${{ matrix.flavor }}
           device-model: iPhone-17-Pro
           device-os: iOS-26-2
-          # The maintainVisibleContentPosition flows fail on iOS since the
-          # RNTester tab bar inset change in #58900. Skip them until it's fixed.
-          exclude-tags: android-release-only
       - name: Report status
         id: report-status
         if: ${{ always() && steps.run-tests.outcome == 'failure' }}

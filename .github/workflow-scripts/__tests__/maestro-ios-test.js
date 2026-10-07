@@ -14,7 +14,6 @@ jest.mock('child_process', () => ({
 jest.mock('fs', () => ({
   existsSync: jest.fn(),
   lstatSync: jest.fn(),
-  readFileSync: jest.fn(),
   readdirSync: jest.fn(),
 }));
 
@@ -53,29 +52,6 @@ describe('Maestro iOS runner', () => {
     );
     expect(childProcess.execSync.mock.calls[1][0]).toContain(
       'test "flows/second.yaml"',
-    );
-  });
-
-  it('skips flows with excluded tags', async () => {
-    jest.spyOn(console, 'info').mockImplementation(() => {});
-    fs.existsSync.mockReturnValue(true);
-    fs.lstatSync.mockImplementation(path => ({
-      isDirectory: () => path === 'flows/',
-    }));
-    fs.readdirSync.mockReturnValue(['excluded.yml', 'regular.yml']);
-    fs.readFileSync.mockImplementation(path =>
-      path === 'flows/excluded.yml'
-        ? 'appId: x\ntags:\n  - android-release-only\n---\n- launchApp\n'
-        : 'appId: x\n---\n- launchApp\n',
-    );
-
-    await executeFlows('com.example', 'device-id', 'flows/', 'Hermes', [
-      'android-release-only',
-    ]);
-
-    expect(childProcess.execSync).toHaveBeenCalledTimes(1);
-    expect(childProcess.execSync.mock.calls[0][0]).toContain(
-      'test "flows/regular.yml"',
     );
   });
 

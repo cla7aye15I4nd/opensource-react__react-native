@@ -9,11 +9,11 @@
 
 const childProcess = require('child_process');
 const fs = require('fs');
-const {filterFlowsByTags} = require('./maestro-android');
+const path = require('path');
 
 const usage = `
 === Usage ===
-node maestro-ios.js <path to app> <app_id> <maestro_flow> <jsengine> <flavor> <working_directory> [device_model] [device_os] [exclude_tags]
+node maestro-ios.js <path to app> <app_id> <maestro_flow> <jsengine> <flavor> <working_directory> [device_model] [device_os]
 
 @param {string} appPath - Path to the app APK
 @param {string} appId - App ID that needs to be launched
@@ -23,11 +23,11 @@ node maestro-ios.js <path to app> <app_id> <maestro_flow> <jsengine> <flavor> <w
 @param {string} workingDirectory - Working directory from where to run Metro
 @param {string} deviceModel - Optional Maestro device model, such as iPhone-17-Pro
 @param {string} deviceOS - Optional Maestro device OS, such as iOS-26-2
-@param {string} excludeTags - Optional comma-separated flow tags to exclude
 ==============
 `;
 
 const MAX_ATTEMPTS = 5;
+const MAESTRO_LOG_DIRECTORY = '/tmp/MaestroLogs';
 
 function findAvailableSimulator(deviceModel, deviceOS) {
   const output = childProcess.execSync(
@@ -187,7 +187,14 @@ async function executeFlowWithRetries(
   const recProcess = startVideoRecording(udid, currentAttempt);
   try {
     const timeout = 1000 * 60 * 10; // 10 minutes
-    const command = `$HOME/.maestro/bin/maestro --udid="${udid}" test "${flow}" --format junit -e APP_ID="${appId}"`;
+    // Keep each attempt's commands, screenshots, and logs; retries would
+    // otherwise overwrite them.
+    const debugOutput = path.join(
+      MAESTRO_LOG_DIRECTORY,
+      path.basename(flow, path.extname(flow)),
+      `attempt-${currentAttempt}`,
+    );
+    const command = `$HOME/.maestro/bin/maestro --udid="${udid}" test "${flow}" --format junit -e APP_ID="${appId}" --debug-output "${debugOutput}"`;
     console.info(`Executing flow: ${flow} (attempt ${currentAttempt})`);
     console.log(command);
     childProcess.execSync(`MAESTRO_DRIVER_STARTUP_TIMEOUT=1500000 ${command}`, {
@@ -217,13 +224,7 @@ async function executeFlowWithRetries(
   }
 }
 
-async function executeFlows(
-  appId,
-  udid,
-  maestroFlow,
-  jsengine,
-  excludeTags = [],
-) {
+async function executeFlows(appId, udid, maestroFlow, jsengine) {
   if (!fs.existsSync(maestroFlow) || !fs.lstatSync(maestroFlow).isDirectory()) {
     await executeFlowWithRetries(appId, udid, maestroFlow, jsengine, 1);
     return;
@@ -237,18 +238,15 @@ async function executeFlows(
       if (file === 'helpers') {
         continue;
       }
-      await executeFlows(appId, udid, filePath, jsengine, excludeTags);
+      await executeFlows(appId, udid, filePath, jsengine);
     } else if (file.endsWith('.yml') || file.endsWith('.yaml')) {
-      if (filterFlowsByTags([filePath], excludeTags).length === 0) {
-        continue;
-      }
       await executeFlowWithRetries(appId, udid, filePath, jsengine, 1);
     }
   }
 }
 
 async function main(args = process.argv.slice(2)) {
-  if (args.length < 6 || args.length > 9) {
+  if (args.length < 6 || args.length > 8) {
     throw new Error(`Invalid number of arguments.\n${usage}`);
   }
 
@@ -260,10 +258,6 @@ async function main(args = process.argv.slice(2)) {
   const workingDirectory = args[5];
   const deviceModel = args[6] || null;
   const deviceOS = args[7] || null;
-  const excludeTags = (args[8] ?? '')
-    .split(',')
-    .map(tag => tag.trim())
-    .filter(Boolean);
 
   console.info('\n==============================');
   console.info('Running tests for iOS with the following parameters:');
@@ -275,7 +269,6 @@ async function main(args = process.argv.slice(2)) {
   console.info(`WORKING_DIRECTORY: ${workingDirectory}`);
   console.info(`DEVICE_MODEL: ${deviceModel ?? '<automatic>'}`);
   console.info(`DEVICE_OS: ${deviceOS ?? '<automatic>'}`);
-  console.info(`EXCLUDE_TAGS: ${excludeTags.join(',') || '<none>'}`);
   console.info('==============================\n');
 
   const simulator = findAvailableSimulator(deviceModel, deviceOS);
@@ -283,7 +276,7 @@ async function main(args = process.argv.slice(2)) {
   installAppOnSimulator(appPath, simulator.udid);
   bringSimulatorInForeground();
   await launchAppOnSimulator(appId, simulator.udid, isDebug);
-  await executeFlows(appId, simulator.udid, maestroFlow, jsengine, excludeTags);
+  await executeFlows(appId, simulator.udid, maestroFlow, jsengine);
   console.log('Test finished');
 }
 
