@@ -9,7 +9,6 @@
 
 const childProcess = require('child_process');
 const fs = require('fs');
-const path = require('path');
 
 const usage = `
 === Usage ===
@@ -27,7 +26,6 @@ node maestro-ios.js <path to app> <app_id> <maestro_flow> <jsengine> <flavor> <w
 `;
 
 const MAX_ATTEMPTS = 5;
-const MAESTRO_LOG_DIRECTORY = '/tmp/MaestroLogs';
 
 function findAvailableSimulator(deviceModel, deviceOS) {
   const output = childProcess.execSync(
@@ -187,14 +185,7 @@ async function executeFlowWithRetries(
   const recProcess = startVideoRecording(udid, currentAttempt);
   try {
     const timeout = 1000 * 60 * 10; // 10 minutes
-    // Keep each attempt's commands, screenshots, and logs; retries would
-    // otherwise overwrite them.
-    const debugOutput = path.join(
-      MAESTRO_LOG_DIRECTORY,
-      path.basename(flow, path.extname(flow)),
-      `attempt-${currentAttempt}`,
-    );
-    const command = `$HOME/.maestro/bin/maestro --udid="${udid}" test "${flow}" --format junit -e APP_ID="${appId}" --debug-output "${debugOutput}"`;
+    const command = `$HOME/.maestro/bin/maestro --udid="${udid}" test "${flow}" --format junit -e APP_ID="${appId}"`;
     console.info(`Executing flow: ${flow} (attempt ${currentAttempt})`);
     console.log(command);
     childProcess.execSync(`MAESTRO_DRIVER_STARTUP_TIMEOUT=1500000 ${command}`, {
