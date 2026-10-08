@@ -4,8 +4,11 @@ exports[`LogBoxNotificationContainer should render both an error and warning not
 <SafeAreaView
   style={
     Object {
-      "bottom": 20,
+      "alignItems": "center",
+      "bottom": 16,
+      "gap": 5,
       "left": 10,
+      "pointerEvents": "box-none",
       "position": "absolute",
       "right": 10,
     }
@@ -14,9 +17,10 @@ exports[`LogBoxNotificationContainer should render both an error and warning not
   <View
     style={
       Object {
-        "borderRadius": 8,
-        "marginBottom": 5,
+        "borderRadius": 12,
+        "maxWidth": 600,
         "overflow": "hidden",
+        "width": "100%",
       }
     }
   >
@@ -59,9 +63,10 @@ exports[`LogBoxNotificationContainer should render both an error and warning not
   <View
     style={
       Object {
-        "borderRadius": 8,
-        "marginBottom": 5,
+        "borderRadius": 12,
+        "maxWidth": 600,
         "overflow": "hidden",
+        "width": "100%",
       }
     }
   >
@@ -116,8 +121,11 @@ exports[`LogBoxNotificationContainer should render the latest error notification
 <SafeAreaView
   style={
     Object {
-      "bottom": 20,
+      "alignItems": "center",
+      "bottom": 16,
+      "gap": 5,
       "left": 10,
+      "pointerEvents": "box-none",
       "position": "absolute",
       "right": 10,
     }
@@ -126,9 +134,10 @@ exports[`LogBoxNotificationContainer should render the latest error notification
   <View
     style={
       Object {
-        "borderRadius": 8,
-        "marginBottom": 5,
+        "borderRadius": 12,
+        "maxWidth": 600,
         "overflow": "hidden",
+        "width": "100%",
       }
     }
   >
@@ -175,8 +184,11 @@ exports[`LogBoxNotificationContainer should render the latest warning notificati
 <SafeAreaView
   style={
     Object {
-      "bottom": 20,
+      "alignItems": "center",
+      "bottom": 16,
+      "gap": 5,
       "left": 10,
+      "pointerEvents": "box-none",
       "position": "absolute",
       "right": 10,
     }
@@ -185,9 +197,10 @@ exports[`LogBoxNotificationContainer should render the latest warning notificati
   <View
     style={
       Object {
-        "borderRadius": 8,
-        "marginBottom": 5,
+        "borderRadius": 12,
+        "maxWidth": 600,
         "overflow": "hidden",
+        "width": "100%",
       }
     }
   >
