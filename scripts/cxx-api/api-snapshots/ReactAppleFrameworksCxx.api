@@ -2969,13 +2969,6 @@ protocol RCTSchedulerDelegate {
   public virtual void schedulerShouldRenderTransactions:(std::shared_ptr<const facebook::react::MountingCoordinator> mountingCoordinator);
 }
 
-protocol RCTScrollViewProtocol : public NSObject {
-  public virtual void flashScrollIndicators();
-  public virtual void scrollTo:y:animated:(double x, double y, BOOL animated);
-  public virtual void scrollToEnd:(BOOL animated);
-  public virtual void zoomToRect:animated:(CGRect rect, BOOL animated);
-}
-
 protocol RCTScrollableProtocol {
   public @property (assign, readonly) CGSize contentSize;
   public virtual void addScrollListener:(NSObject<UIScrollViewDelegate>* scrollListener);
@@ -3276,7 +3269,6 @@ const char facebook::react::RootComponentName[];
 const char facebook::react::RuntimeSchedulerKey[];
 const char facebook::react::ScrollViewComponentName[];
 const char facebook::react::TextComponentName[];
-const char facebook::react::TextEffectComponentName[];
 const char facebook::react::TextInputComponentName[];
 const char facebook::react::ViewComponentName[];
 const facebook::react::EventTag facebook::react::EMPTY_EVENT_TAG;
@@ -3290,12 +3282,7 @@ constexpr uint32_t facebook::react::INITIAL_BUCKETS_SIZE;
 static const facebook::react::LayoutMetrics facebook::react::EmptyLayoutMetrics;
 static const facebook::react::TelemetryTimePoint facebook::react::kTelemetryUndefinedTimePoint;
 static constexpr auto facebook::react::kPropNameLengthHardCap;
-static constexpr double facebook::react::SingleFrameIntervalMs;
-static constexpr double facebook::react::TicksPerMs;
 static constexpr facebook::react::RawPropsValueIndex facebook::react::kRawPropsValueIndexEmpty;
-static constexpr std::string_view facebook::react::ExtrapolateTypeClamp;
-static constexpr std::string_view facebook::react::ExtrapolateTypeExtend;
-static constexpr std::string_view facebook::react::ExtrapolateTypeIdentity;
 template <CSSDataType... AllowedTypesT>
 using facebook::react::CSSCompoundDataType = std::variant<AllowedTypesT...>;
 template <CSSMaybeCompoundDataType AllowedTypeT>
@@ -3419,8 +3406,6 @@ using facebook::react::TelemetryClock = std::chrono::steady_clock;
 using facebook::react::TelemetryDuration = std::chrono::nanoseconds;
 using facebook::react::TelemetryTimePoint = facebook::react::TelemetryClock::time_point;
 using facebook::react::TextComponentDescriptor = facebook::react::ConcreteComponentDescriptor<facebook::react::TextShadowNode>;
-using facebook::react::TextEffectComponentDescriptor = facebook::react::ConcreteComponentDescriptor<facebook::react::TextEffectShadowNode>;
-using facebook::react::TextEffectEventEmitter = facebook::react::TouchEventEmitter;
 using facebook::react::TextEventEmitter = facebook::react::TouchEventEmitter;
 using facebook::react::TextLayoutManagerExtended = facebook::react::detail::TextLayoutManagerExtended<facebook::react::TextLayoutManager>;
 using facebook::react::TextMeasureCache = facebook::react::SimpleThreadSafeCache<facebook::react::TextMeasureCacheKey, facebook::react::TextMeasurement, facebook::react::kSimpleThreadSafeCacheSizeCap>;
@@ -3540,7 +3525,6 @@ bool facebook::react::isColorMeaningful(const facebook::react::SharedColor& colo
 bool facebook::react::isHermesBytecodeBundle(const facebook::react::BundleHeader& header);
 bool facebook::react::isZero(facebook::react::Float n);
 const char* facebook::react::stringForScriptTag(const facebook::react::ScriptTag& tag);
-const std::unordered_set<std::string>& facebook::react::getDirectManipulationAllowlist();
 constexpr auto facebook::react::to_underlying(auto e) noexcept;
 constexpr bool facebook::react::iequals(std::string_view a, std::string_view b);
 constexpr char facebook::react::toLower(char c);
@@ -3548,7 +3532,6 @@ constexpr float facebook::react::canonicalize(float value, facebook::react::CSSA
 constexpr std::optional<facebook::react::CSSAngleUnit> facebook::react::parseCSSAngleUnit(std::string_view unit);
 constexpr std::optional<facebook::react::CSSLengthUnit> facebook::react::parseCSSLengthUnit(std::string_view unit);
 constexpr uint32_t facebook::react::fnv1aLowercase(std::string_view string);
-double facebook::react::interpolate(double inputValue, double inputMin, double inputMax, double outputMin, double outputMax, std::string_view extrapolateLeft, std::string_view extrapolateRight);
 facebook::jsi::Value facebook::react::createPromiseAsJSIValue(facebook::jsi::Runtime& rt, facebook::react::PromiseSetupFunctionType&& func);
 facebook::react::Color facebook::react::hostPlatformColorFromComponents(facebook::react::ColorComponents components);
 facebook::react::Color facebook::react::hostPlatformColorFromRGBA(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
@@ -3856,11 +3839,6 @@ class facebook::react::ActivityIndicatorViewProps : public facebook::react::Host
   public facebook::react::SharedColor color;
 }
 
-class facebook::react::AdditionAnimatedNode : public facebook::react::OperatorAnimatedNode {
-  public AdditionAnimatedNode(facebook::react::Tag tag, const folly::dynamic& config, facebook::react::NativeAnimatedNodesManager& manager);
-  public virtual void update() override;
-}
-
 class facebook::react::AnimatedModule : public facebook::react::NativeAnimatedModuleCxxSpec<facebook::react::AnimatedModule>, public facebook::react::TurboModuleWithJSIBindings {
   public AnimatedModule(std::shared_ptr<facebook::react::CallInvoker> jsInvoker, std::shared_ptr<facebook::react::NativeAnimatedNodesManagerProvider> nodesManagerProvider);
   public void addAnimatedEventToView(facebook::jsi::Runtime& rt, facebook::react::Tag viewTag, std::string eventName, facebook::jsi::Object eventMapping);
@@ -3888,12 +3866,6 @@ class facebook::react::AnimatedModule : public facebook::react::NativeAnimatedMo
   public void stopAnimation(facebook::jsi::Runtime& rt, int animationId);
   public void stopListeningToAnimatedNodeValue(facebook::jsi::Runtime& rt, facebook::react::Tag tag);
   public void updateAnimatedNodeConfig(facebook::jsi::Runtime& rt, facebook::react::Tag tag, facebook::jsi::Object config);
-}
-
-class facebook::react::AnimatedMountingOverrideDelegate : public facebook::react::MountingOverrideDelegate {
-  public AnimatedMountingOverrideDelegate(facebook::react::NativeAnimatedNodesManager& animatedManager, const facebook::react::Scheduler& scheduler);
-  public virtual bool shouldOverridePullTransaction() const override;
-  public virtual std::optional<facebook::react::MountingTransaction> pullTransaction(facebook::react::SurfaceId surfaceId, facebook::react::MountingTransaction::Number transactionNumber, const facebook::react::TransactionTelemetry& telemetry, facebook::react::ShadowViewMutationList mutations) const override;
 }
 
 class facebook::react::AnimatedNode {
@@ -3947,32 +3919,6 @@ class facebook::react::AnimationChoreographer {
   public virtual ~AnimationChoreographer() = default;
   public void onAnimationFrame(facebook::react::AnimationTimestamp timestamp) const;
   public void setAnimationBackend(std::weak_ptr<facebook::react::UIManagerAnimationBackend> animationBackend);
-}
-
-class facebook::react::AnimationDriver {
-  protected bool ignoreCompletedHandlers_;
-  protected bool isComplete_;
-  protected bool isStarted_;
-  protected double startFrameTimeMs_;
-  protected facebook::react::NativeAnimatedNodesManager* manager_;
-  protected facebook::react::Tag animatedValueTag_;
-  protected folly::dynamic config_;
-  protected int currentIteration_;
-  protected int id_;
-  protected int iterations_;
-  protected std::optional<facebook::react::AnimationEndCallback> endCallback_;
-  protected virtual bool update(double, bool);
-  protected void markNodeUpdated(facebook::react::Tag tag);
-  public AnimationDriver(int id, facebook::react::Tag animatedValueTag, std::optional<facebook::react::AnimationEndCallback> endCallback, folly::dynamic config, facebook::react::NativeAnimatedNodesManager* manager);
-  public bool getIsComplete() const noexcept;
-  public facebook::react::Tag getAnimatedValueTag() const noexcept;
-  public int getId() const noexcept;
-  public static std::optional<facebook::react::AnimationDriverType> getDriverTypeByName(const std::string& driverTypeName);
-  public virtual void updateConfig(folly::dynamic config);
-  public virtual ~AnimationDriver() = default;
-  public void runAnimationStep(double renderingTime);
-  public void startAnimation();
-  public void stopAnimation(bool ignoreCompletedHandlers = false);
 }
 
 class facebook::react::AppRegistryBinding {
@@ -4303,12 +4249,6 @@ class facebook::react::CallbackWrapper : public facebook::react::LongLivedObject
   public void destroy();
 }
 
-class facebook::react::ColorAnimatedNode : public facebook::react::AnimatedNode {
-  public ColorAnimatedNode(facebook::react::Tag tag, const folly::dynamic& config, facebook::react::NativeAnimatedNodesManager& manager);
-  public facebook::react::Color getColor();
-  public virtual void update() override;
-}
-
 class facebook::react::ComponentDescriptor {
   protected facebook::react::ComponentDescriptor::Flavor flavor_;
   protected facebook::react::EventDispatcher::Weak eventDispatcher_;
@@ -4383,21 +4323,6 @@ class facebook::react::DebuggingOverlayEventEmitter : public facebook::react::Ba
 class facebook::react::DebuggingOverlayProps : public facebook::react::HostPlatformViewProps {
   public DebuggingOverlayProps() = default;
   public DebuggingOverlayProps(const facebook::react::PropsParserContext& context, const facebook::react::DebuggingOverlayProps& sourceProps, const facebook::react::RawProps& rawProps);
-}
-
-class facebook::react::DecayAnimationDriver : public facebook::react::AnimationDriver {
-  protected virtual bool update(double timeDeltaMs, bool restarting) override;
-  public DecayAnimationDriver(int id, facebook::react::Tag animatedValueTag, std::optional<facebook::react::AnimationEndCallback> endCallback, folly::dynamic config, facebook::react::NativeAnimatedNodesManager* manager);
-}
-
-class facebook::react::DiffClampAnimatedNode : public facebook::react::ValueAnimatedNode {
-  public DiffClampAnimatedNode(facebook::react::Tag tag, const folly::dynamic& config, facebook::react::NativeAnimatedNodesManager& manager);
-  public virtual void update() override;
-}
-
-class facebook::react::DivisionAnimatedNode : public facebook::react::OperatorAnimatedNode {
-  public DivisionAnimatedNode(facebook::react::Tag tag, const folly::dynamic& config, facebook::react::NativeAnimatedNodesManager& manager);
-  public virtual void update() override;
 }
 
 class facebook::react::Error {
@@ -4531,12 +4456,6 @@ class facebook::react::EventTarget {
   public void release(facebook::jsi::Runtime& runtime);
   public void retain(facebook::jsi::Runtime& runtime);
   public void setEnabled(bool enabled);
-}
-
-class facebook::react::FrameAnimationDriver : public facebook::react::AnimationDriver {
-  protected virtual bool update(double timeDeltaMs, bool restarting) override;
-  protected virtual void updateConfig(folly::dynamic config) override;
-  public FrameAnimationDriver(int id, facebook::react::Tag animatedValueTag, std::optional<facebook::react::AnimationEndCallback> endCallback, folly::dynamic config, facebook::react::NativeAnimatedNodesManager* manager);
 }
 
 class facebook::react::FuseboxTracer {
@@ -4784,13 +4703,6 @@ class facebook::react::InstanceHandle {
   public facebook::jsi::Value getInstanceHandle(facebook::jsi::Runtime& runtime) const;
   public facebook::react::Tag getTag() const;
   public using Shared = std::shared_ptr<const facebook::react::InstanceHandle>;
-}
-
-class facebook::react::InterpolationAnimatedNode : public facebook::react::ValueAnimatedNode {
-  public InterpolationAnimatedNode(facebook::react::Tag tag, const folly::dynamic& config, facebook::react::NativeAnimatedNodesManager& manager);
-  public virtual void onAttachToNode(facebook::react::Tag animatedNodeTag) override;
-  public virtual void onDetachedFromNode(facebook::react::Tag animatedNodeTag) override;
-  public virtual void update() override;
 }
 
 class facebook::react::JSBigBufferString : public facebook::react::JSBigString {
@@ -5120,11 +5032,6 @@ class facebook::react::ModalHostViewState {
   public using Shared = std::shared_ptr<const facebook::react::ModalHostViewState>;
 }
 
-class facebook::react::ModulusAnimatedNode : public facebook::react::ValueAnimatedNode {
-  public ModulusAnimatedNode(facebook::react::Tag tag, const folly::dynamic& config, facebook::react::NativeAnimatedNodesManager& manager);
-  public virtual void update() override;
-}
-
 class facebook::react::MountingCoordinator {
   public MountingCoordinator(const facebook::react::ShadowTreeRevision& baseRevision);
   public bool hasPendingTransactions() const;
@@ -5156,11 +5063,6 @@ class facebook::react::MountingTransaction {
   public facebook::react::TransactionTelemetry& getTelemetry() const;
   public using Number = int64_t;
   public void mergeWith(facebook::react::MountingTransaction&& transaction);
-}
-
-class facebook::react::MultiplicationAnimatedNode : public facebook::react::OperatorAnimatedNode {
-  public MultiplicationAnimatedNode(facebook::react::Tag tag, const folly::dynamic& config, facebook::react::NativeAnimatedNodesManager& manager);
-  public virtual void update() override;
 }
 
 class facebook::react::NSDataBigString : public facebook::react::JSBigString {
@@ -5493,16 +5395,6 @@ struct facebook::react::ObjCTurboModule::InitParams {
   public std::string moduleName;
 }
 
-class facebook::react::ObjectAnimatedNode : public facebook::react::AnimatedNode {
-  public ObjectAnimatedNode(facebook::react::Tag tag, const folly::dynamic& config, facebook::react::NativeAnimatedNodesManager& manager);
-  public void collectViewUpdates(std::string propKey, folly::dynamic& props);
-}
-
-class facebook::react::OperatorAnimatedNode : public facebook::react::ValueAnimatedNode {
-  protected std::vector<facebook::react::Tag> inputNodes_;
-  public OperatorAnimatedNode(facebook::react::Tag tag, const folly::dynamic& config, facebook::react::NativeAnimatedNodesManager& manager);
-}
-
 class facebook::react::ParagraphAttributes : public facebook::react::DebugStringConvertible {
   public bool adjustsFontSizeToFit;
   public bool includeFontPadding;
@@ -5592,21 +5484,6 @@ class facebook::react::Props : public virtual facebook::react::Sealable, public 
   public using Shared = std::shared_ptr<const facebook::react::Props>;
   public virtual ~Props() = default;
   public void setProp(const facebook::react::PropsParserContext& context, facebook::react::RawPropsPropNameHash hash, const char* propName, const facebook::react::RawValue& value);
-}
-
-class facebook::react::PropsAnimatedNode : public facebook::react::AnimatedNode {
-  public PropsAnimatedNode(facebook::react::Tag tag, const folly::dynamic& config, facebook::react::NativeAnimatedNodesManager& manager);
-  public facebook::react::SurfaceId connectedRootTag() const;
-  public facebook::react::Tag connectedViewTag() const;
-  public folly::dynamic props();
-  public virtual void update() override;
-  public void collectProps();
-  public void connectToShadowNodeFamily(facebook::react::ShadowNodeFamily::Weak shadowNodeFamily);
-  public void connectToView(facebook::react::Tag viewTag);
-  public void disconnectFromShadowNodeFamily();
-  public void disconnectFromView(facebook::react::Tag viewTag);
-  public void restoreDefaultValues();
-  public void update(bool forceFabricCommit);
 }
 
 class facebook::react::PullToRefreshViewEventEmitter : public facebook::react::BaseViewEventEmitter {
@@ -5775,11 +5652,6 @@ class facebook::react::RootShadowNode : public facebook::react::ConcreteViewShad
   public using Unshared = std::shared_ptr<facebook::react::RootShadowNode>;
   public virtual facebook::react::Transform getTransform() const override;
   public void setInstanceHandle(facebook::react::InstanceHandle::Shared instanceHandle) const;
-}
-
-class facebook::react::RoundAnimatedNode : public facebook::react::ValueAnimatedNode {
-  public RoundAnimatedNode(facebook::react::Tag tag, const folly::dynamic& config, facebook::react::NativeAnimatedNodesManager& manager);
-  public virtual void update() override;
 }
 
 class facebook::react::RunLoopObserver {
@@ -5990,17 +5862,6 @@ class facebook::react::Sealable {
   public void seal() const;
 }
 
-class facebook::react::SelectableParagraphComponentDescriptor : public facebook::react::BaseParagraphComponentDescriptor<facebook::react::SelectableParagraphShadowNode> {
-  public SelectableParagraphComponentDescriptor(const facebook::react::ComponentDescriptorParameters& parameters);
-}
-
-class facebook::react::SelectableParagraphShadowNode : public facebook::react::ParagraphShadowNode {
-  public SelectableParagraphShadowNode(const facebook::react::ShadowNode& sourceShadowNode, const facebook::react::ShadowNodeFragment& fragment);
-  public SelectableParagraphShadowNode(const facebook::react::ShadowNodeFragment& fragment, const facebook::react::ShadowNodeFamily::Shared& family, facebook::react::ShadowNodeTraits traits);
-  public static constexpr facebook::react::ComponentName Name();
-  public static facebook::react::ComponentHandle Handle();
-}
-
 class facebook::react::Selection {
   public int end;
   public int start;
@@ -6162,11 +6023,6 @@ class facebook::react::SharedColor {
   public std::string toString() const noexcept;
 }
 
-class facebook::react::SpringAnimationDriver : public facebook::react::AnimationDriver {
-  protected virtual bool update(double timeDeltaMs, bool restarting) override;
-  public SpringAnimationDriver(int id, facebook::react::Tag animatedValueTag, std::optional<facebook::react::AnimationEndCallback> endCallback, folly::dynamic config, facebook::react::NativeAnimatedNodesManager* manager);
-}
-
 class facebook::react::StackTraceParser {
   public static std::vector<facebook::react::JsErrorHandler::ProcessedError::StackFrame> parse(bool isHermes, const std::string& stackString);
 }
@@ -6192,17 +6048,6 @@ class facebook::react::StateUpdate {
   public facebook::react::StateUpdate::Callback callback;
   public using Callback = std::function<facebook::react::StateData::Shared(const facebook::react::StateData::Shared& data)>;
   public using FailureCallback = std::function<void()>;
-}
-
-class facebook::react::StyleAnimatedNode : public facebook::react::AnimatedNode {
-  public StyleAnimatedNode(facebook::react::Tag tag, const folly::dynamic& config, facebook::react::NativeAnimatedNodesManager& manager);
-  public bool isLayoutStyleUpdated() const noexcept;
-  public void collectViewUpdates(folly::dynamic& props);
-}
-
-class facebook::react::SubtractionAnimatedNode : public facebook::react::OperatorAnimatedNode {
-  public SubtractionAnimatedNode(facebook::react::Tag tag, const folly::dynamic& config, facebook::react::NativeAnimatedNodesManager& manager);
-  public virtual void update() override;
 }
 
 class facebook::react::SurfaceHandler {
@@ -6339,16 +6184,6 @@ class facebook::react::TextAttributes : public facebook::react::DebugStringConve
   public std::string fontFamily;
   public std::vector<facebook::react::TextEffectInfo> textEffects;
   public void apply(facebook::react::TextAttributes textAttributes);
-}
-
-class facebook::react::TextEffectProps : public facebook::react::Props {
-  public TextEffectProps() = default;
-  public TextEffectProps(const facebook::react::PropsParserContext& context, const facebook::react::TextEffectProps& sourceProps, const facebook::react::RawProps& rawProps);
-  public folly::dynamic effectProps;
-  public std::string effectName;
-}
-
-class facebook::react::TextEffectShadowNode : public facebook::react::ConcreteShadowNode<facebook::react::TextEffectComponentName, facebook::react::ShadowNode, facebook::react::TextEffectProps, facebook::react::TextEffectEventEmitter> {
 }
 
 class facebook::react::TextInputComponentDescriptor : public facebook::react::ConcreteComponentDescriptor<facebook::react::TextInputShadowNode> {
@@ -6508,11 +6343,6 @@ class facebook::react::TouchEventEmitter : public facebook::react::EventEmitter 
   public void onTouchStart(facebook::react::TouchEvent event) const;
 }
 
-class facebook::react::TrackingAnimatedNode : public facebook::react::AnimatedNode {
-  public TrackingAnimatedNode(facebook::react::Tag tag, const folly::dynamic& config, facebook::react::NativeAnimatedNodesManager& manager);
-  public virtual void update() override;
-}
-
 class facebook::react::TransactionTelemetry {
   public TransactionTelemetry();
   public TransactionTelemetry(std::function<facebook::react::TelemetryTimePoint()> now);
@@ -6543,11 +6373,6 @@ class facebook::react::TransactionTelemetry {
   public void willLayout();
   public void willMeasureText();
   public void willMount();
-}
-
-class facebook::react::TransformAnimatedNode : public facebook::react::AnimatedNode {
-  public TransformAnimatedNode(facebook::react::Tag tag, const folly::dynamic& config, facebook::react::NativeAnimatedNodesManager& manager);
-  public void collectViewUpdates(folly::dynamic& props);
 }
 
 class facebook::react::TurboModule : public facebook::jsi::HostObject {
@@ -6739,20 +6564,6 @@ class facebook::react::UnimplementedNativeViewProps : public facebook::react::Ho
   public UnimplementedNativeViewProps() = default;
   public UnimplementedNativeViewProps(const facebook::react::PropsParserContext& context, const facebook::react::UnimplementedNativeViewProps& sourceProps, const facebook::react::RawProps& rawProps);
   public std::string name;
-}
-
-class facebook::react::ValueAnimatedNode : public facebook::react::AnimatedNode {
-  protected bool isColorValue_;
-  public ValueAnimatedNode(facebook::react::Tag tag, const folly::dynamic& config, facebook::react::NativeAnimatedNodesManager& manager);
-  public bool getIsColorValue() const noexcept;
-  public bool setOffset(double offset) noexcept;
-  public bool setRawValue(double value) noexcept;
-  public double getOffset() const noexcept;
-  public double getRawValue() const noexcept;
-  public double getValue() const noexcept;
-  public void extractOffset() noexcept;
-  public void flattenOffset() noexcept;
-  public void setValueListener(facebook::react::ValueListenerCallback&& callback) noexcept;
 }
 
 class facebook::react::ValueFactoryEventPayload : public facebook::react::EventPayload {
@@ -6947,12 +6758,6 @@ enum facebook::react::AnimationConfigurationType {
   Create,
   Delete,
   Update,
-}
-
-enum facebook::react::AnimationDriverType {
-  Decay,
-  Frames,
-  Spring,
 }
 
 enum facebook::react::AnimationProperty {
@@ -8950,12 +8755,6 @@ struct facebook::react::Transform {
   public std::vector<facebook::react::TransformOperation> operations;
 }
 
-struct facebook::react::TransformConfig {
-  public double value;
-  public facebook::react::Tag nodeTag;
-  public std::string property;
-}
-
 struct facebook::react::TransformOperation {
   public bool operator==(const facebook::react::TransformOperation& other) const = default;
   public facebook::react::TransformOperationType type;
@@ -10919,9 +10718,6 @@ id facebook::react::TurboModuleConvertUtils::convertJSIValueToObjCObject(faceboo
 
 
 static const facebook::react::Color facebook::react::HostPlatformColor::UndefinedColor;
-
-
-static constexpr facebook::react::Tag facebook::react::animated::undefinedAnimatedNodeIdentifier;
 
 
 template <typename JSReturnT, typename ReturnT>

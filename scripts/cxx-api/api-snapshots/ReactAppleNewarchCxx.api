@@ -2886,13 +2886,6 @@ protocol RCTSchedulerDelegate {
   public virtual void schedulerShouldRenderTransactions:(std::shared_ptr<const facebook::react::MountingCoordinator> mountingCoordinator);
 }
 
-protocol RCTScrollViewProtocol : public NSObject {
-  public virtual void flashScrollIndicators();
-  public virtual void scrollTo:y:animated:(double x, double y, BOOL animated);
-  public virtual void scrollToEnd:(BOOL animated);
-  public virtual void zoomToRect:animated:(CGRect rect, BOOL animated);
-}
-
 protocol RCTScrollableProtocol {
   public @property (assign, readonly) CGSize contentSize;
   public virtual void addScrollListener:(NSObject<UIScrollViewDelegate>* scrollListener);
