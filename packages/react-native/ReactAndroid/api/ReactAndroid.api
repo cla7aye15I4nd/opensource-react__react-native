@@ -1838,8 +1838,10 @@ public final class com/facebook/react/devsupport/DefaultDevLoadingViewImplementa
 	public static final field Companion Lcom/facebook/react/devsupport/DefaultDevLoadingViewImplementation$Companion;
 	public fun <init> (Lcom/facebook/react/devsupport/ReactInstanceDevHelper;)V
 	public fun hide ()V
+	public final fun hidePausedInDebuggerMessage ()V
 	public fun showMessage (Ljava/lang/String;)V
 	public fun showMessage (Ljava/lang/String;Ljava/lang/Double;Ljava/lang/Double;Ljava/lang/Boolean;)V
+	public final fun showPausedInDebuggerMessage (Ljava/lang/String;Lkotlin/jvm/functions/Function0;)V
 	public fun updateProgress (Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Integer;Ljava/lang/Integer;)V
 }
 
