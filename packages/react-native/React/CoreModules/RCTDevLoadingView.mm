@@ -34,12 +34,21 @@ static const CGFloat RCTDevLoadingViewLabelHorizontalPadding = 14;
 static const CGFloat RCTDevLoadingViewLabelVerticalPadding = 10;
 static const CGFloat RCTDevLoadingViewMinHeight = 40;
 static const CGFloat RCTDevLoadingViewDismissButtonSize = 22;
+// The paused state's two-line capsule, with tighter vertical padding, and the pause icon at its leading end.
+static const CGFloat RCTDevLoadingViewPausedMinHeight = 46;
+static const CGFloat RCTDevLoadingViewPausedLabelVerticalPadding = 7;
+static const CGFloat RCTDevLoadingViewPausedIconSize = 28;
+static const CGFloat RCTDevLoadingViewPausedLabelTrailingPadding = 16;
+static const CGFloat RCTDevLoadingViewDimmingAlpha = 0.2;
 static const CGFloat RCTDevLoadingViewFontSize = 12.5;
+static const CGFloat RCTDevLoadingViewSubtitleFontSize = 10.5;
 static const CGFloat RCTDevLoadingViewLineSpacing = 2;
 static const NSTimeInterval RCTDevLoadingViewAnimationDuration = 0.2;
 static const CGFloat RCTDevLoadingViewHiddenScale = 0.85;
 // The hidden state scales about a point this fraction of the capsule's height above its center.
 static const CGFloat RCTDevLoadingViewHiddenAnchorOffset = 0.05;
+// The gap between banners stacked one below another.
+static const CGFloat RCTDevLoadingViewStackSpacing = 12;
 
 #if defined(__IPHONE_27_1) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_27_1
 #define RCT_DEV_LOADING_VIEW_HAS_HINGE 1
@@ -59,6 +68,17 @@ static CGFloat RCTDevLoadingViewCenterLayoutAnchor(UIEdgeInsets safeAreaInsets)
   return (MIN(safeAreaInsets.left, RCTDevLoadingViewAlertMinimumMargin) -
           MIN(safeAreaInsets.right, RCTDevLoadingViewAlertMinimumMargin)) /
       2;
+}
+
+// The banners currently shown, held weakly, so one can stack below another.
+static NSHashTable<RCTDevLoadingView *> *RCTDevLoadingViewVisibleBanners(void)
+{
+  static NSHashTable<RCTDevLoadingView *> *banners;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    banners = [NSHashTable weakObjectsHashTable];
+  });
+  return banners;
 }
 
 // Hosts the banner above the app's windows and passes touches outside it through to them.
@@ -92,11 +112,22 @@ static CGFloat RCTDevLoadingViewCenterLayoutAnchor(UIEdgeInsets safeAreaInsets)
   UIView *_container;
   UIView *_contentView;
   UIButton *_dismissButton;
+  UIImageView *_pausedIcon;
+  UIView *_dimmingView;
+  NSLayoutConstraint *_labelLeadingConstraint;
+  NSLayoutConstraint *_labelToIconConstraint;
+  NSLayoutConstraint *_minHeightConstraint;
+  NSLayoutConstraint *_labelTopConstraint;
+  NSLayoutConstraint *_labelBottomConstraint;
   NSLayoutConstraint *_labelTrailingConstraint;
   NSLayoutConstraint *_labelToButtonConstraint;
   NSLayoutConstraint *_centerConstraint;
   NSLayoutConstraint *_trailingLimitConstraint;
   NSLayoutConstraint *_topSafeAreaConstraint;
+  NSLayoutConstraint *_topMarginConstraint;
+  NSLayoutConstraint *_topPullConstraint;
+  // Set in the paused-in-debugger state, where a tap on the banner resumes instead of hiding it.
+  dispatch_block_t _resumeAction;
   NSDate *_showDate;
   BOOL _hiding;
   // Incremented by each show so a hide animation that it interrupts does not tear down the new banner.
@@ -185,7 +216,31 @@ RCT_EXPORT_MODULE()
   if (!RCTDevLoadingViewGetEnabled()) {
     return;
   }
+  [self _showMessage:message color:color backgroundColor:backgroundColor dismissButton:dismissButton resumeAction:nil];
+}
 
+- (void)showPausedInDebuggerMessage:(NSString *)message onResume:(dispatch_block_t)onResume
+{
+  [self _showMessage:message
+                color:UIColor.blackColor
+      backgroundColor:[UIColor colorWithRed:1 green:0.926 blue:0.595 alpha:1]
+        dismissButton:NO
+         resumeAction:onResume];
+}
+
+- (void)hidePausedInDebuggerMessage
+{
+  [self _hide];
+}
+
+// The paused state has its own entry points above, which skip the enabled switch: a paused app must always show
+// why it is not responding.
+- (void)_showMessage:(NSString *)message
+               color:(UIColor *)color
+     backgroundColor:(UIColor *)backgroundColor
+       dismissButton:(BOOL)dismissButton
+        resumeAction:(dispatch_block_t)resumeAction
+{
   // Input validation
   if (message == nil || [message isEqualToString:@""]) {
     NSLog(@"Error: message cannot be nil or empty");
@@ -207,6 +262,7 @@ RCT_EXPORT_MODULE()
 
     self->_showDate = [NSDate date];
     self->_generation++;
+    self->_resumeAction = resumeAction;
     if (self->_hiding) {
       [self _removeBanner];
     }
@@ -217,7 +273,9 @@ RCT_EXPORT_MODULE()
                                          : [[RCTDevLoadingWindow alloc] init];
       self->_window.frame = self->_window.windowScene.coordinateSpace.bounds;
 #if !TARGET_OS_TV
-      self->_window.windowLevel = UIWindowLevelStatusBar + 1;
+      // The paused window dims and blocks the app beneath it; loading banners sit one level above, so they stay
+      // readable and tappable while the app is paused.
+      self->_window.windowLevel = UIWindowLevelStatusBar + (resumeAction != nil ? 1 : 2);
 #endif
       self->_window.rootViewController = [UIViewController new];
       __weak __typeof(self) weakSelf = self;
@@ -256,9 +314,41 @@ RCT_EXPORT_MODULE()
     self->_labelTrailingConstraint.active = self->_dismissButton == nullptr;
     self->_labelToButtonConstraint.active = self->_dismissButton != nullptr;
 
+    BOOL paused = resumeAction != nil;
+    if (paused && self->_pausedIcon == nullptr) {
+      [self _createPausedIcon];
+    } else if (!paused && self->_pausedIcon != nullptr) {
+      [self->_pausedIcon removeFromSuperview];
+      self->_pausedIcon = nullptr;
+      self->_labelToIconConstraint = nil;
+    }
+    self->_labelLeadingConstraint.active = self->_pausedIcon == nullptr;
+    self->_labelToIconConstraint.active = self->_pausedIcon != nullptr;
+    if (paused && self->_dimmingView == nullptr) {
+      [self _createDimmingView];
+    } else if (!paused && self->_dimmingView != nullptr) {
+      [self->_dimmingView removeFromSuperview];
+      self->_dimmingView = nullptr;
+    }
+    CGFloat verticalPadding =
+        paused ? RCTDevLoadingViewPausedLabelVerticalPadding : RCTDevLoadingViewLabelVerticalPadding;
+    self->_labelTopConstraint.constant = verticalPadding;
+    self->_labelBottomConstraint.constant = -verticalPadding;
+    self->_labelTrailingConstraint.constant =
+        -(paused ? RCTDevLoadingViewPausedLabelTrailingPadding : RCTDevLoadingViewLabelHorizontalPadding);
+    self->_container.isAccessibilityElement = paused;
+    self->_container.accessibilityLabel = paused ? [message stringByAppendingString:@". Tap to resume."] : nil;
+    CGFloat minHeight = paused ? RCTDevLoadingViewPausedMinHeight : RCTDevLoadingViewMinHeight;
+    self->_minHeightConstraint.constant = minHeight;
+    if (![self->_container isKindOfClass:UIVisualEffectView.class]) {
+      self->_container.layer.cornerRadius = minHeight / 2;
+    }
+
+    [RCTDevLoadingViewVisibleBanners() addObject:self];
     self->_window.hidden = NO;
     [self _updatePlacementAnimated:NO];
     [self->_window layoutIfNeeded];
+    [self _updateOtherBannersAnimated:YES];
     if (isNewBanner) {
       [self _animateBannerIn];
     }
@@ -308,7 +398,8 @@ RCT_EXPORT_MODULE()
 
 // Places the banner where a system alert would center itself, or while a fold divides the screen, centered within
 // the leading segment and clear of the fold. On a foldable held open in portrait, the status bar sits in a corner
-// while its inset spans the whole top edge, so the banner ignores that inset and sits 16pt from the top.
+// while its inset spans the whole top edge, so the banner ignores that inset and sits 16pt from the top. A banner
+// that stacks below others sits under them instead of at the top.
 - (void)_updatePlacementAnimated:(BOOL)animated
 {
   if (_container == nil) {
@@ -319,6 +410,12 @@ RCT_EXPORT_MODULE()
   CGFloat centerOffset = RCTDevLoadingViewCenterLayoutAnchor(safeAreaInsets);
   CGFloat trailingMargin = RCTDevLoadingViewHorizontalMargin;
   BOOL respectsTopSafeArea = YES;
+  CGFloat stackOffset = 0;
+  for (RCTDevLoadingView *banner in RCTDevLoadingViewVisibleBanners()) {
+    if (banner != self && banner->_container != nil && [banner _stackLevel] < [self _stackLevel]) {
+      stackOffset += CGRectGetHeight(banner->_container.frame) + RCTDevLoadingViewStackSpacing;
+    }
+  }
 #if RCT_DEV_LOADING_VIEW_HAS_HINGE
   if (@available(iOS 27.1, *)) {
     respectsTopSafeArea = !(_hingeOpen && CGRectGetHeight(rootView.bounds) > CGRectGetWidth(rootView.bounds));
@@ -336,17 +433,36 @@ RCT_EXPORT_MODULE()
   }
 #endif
   if (centerOffset == _centerConstraint.constant && -trailingMargin == _trailingLimitConstraint.constant &&
-      respectsTopSafeArea == _topSafeAreaConstraint.active) {
+      respectsTopSafeArea == _topSafeAreaConstraint.active && stackOffset == _topPullConstraint.constant) {
     return;
   }
   _centerConstraint.constant = centerOffset;
   _trailingLimitConstraint.constant = -trailingMargin;
   _topSafeAreaConstraint.active = respectsTopSafeArea;
+  _topSafeAreaConstraint.constant = stackOffset;
+  _topMarginConstraint.constant = RCTDevLoadingViewTopMargin + stackOffset;
+  _topPullConstraint.constant = stackOffset;
   if (animated) {
     [UIView animateWithDuration:RCTDevLoadingViewAnimationDuration
                      animations:^{
                        [rootView layoutIfNeeded];
                      }];
+  }
+}
+
+// Banners with a lower level stack above those with a higher one: the paused banner stays on top, and a loading
+// banner sits below it.
+- (NSUInteger)_stackLevel
+{
+  return _resumeAction != nil ? 0 : 1;
+}
+
+- (void)_updateOtherBannersAnimated:(BOOL)animated
+{
+  for (RCTDevLoadingView *banner in [RCTDevLoadingViewVisibleBanners() copy]) {
+    if (banner != self) {
+      [banner _updatePlacementAnimated:animated];
+    }
   }
 }
 
@@ -371,6 +487,7 @@ RCT_EXPORT_MODULE()
     _container.alpha = 0;
   }
   _container.transform = [self _hiddenTransform];
+  _dimmingView.alpha = 0;
 
   [UIView animateWithDuration:RCTDevLoadingViewAnimationDuration
                         delay:0
@@ -380,6 +497,7 @@ RCT_EXPORT_MODULE()
                      self->_contentView.alpha = 1;
                      self->_container.alpha = 1;
                      self->_container.transform = CGAffineTransformIdentity;
+                     self->_dimmingView.alpha = 1;
                    }
                    completion:nil];
 }
@@ -406,7 +524,7 @@ RCT_EXPORT_MODULE()
     contentView = container;
   }
   container.translatesAutoresizingMaskIntoConstraints = NO;
-  [container addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(hide)]];
+  [container addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(_handleTap)]];
 
   UILabel *label = [UILabel new];
   label.translatesAutoresizingMaskIntoConstraints = NO;
@@ -426,26 +544,34 @@ RCT_EXPORT_MODULE()
   _trailingLimitConstraint =
       [container.trailingAnchor constraintLessThanOrEqualToAnchor:safeArea.trailingAnchor
                                                          constant:-RCTDevLoadingViewHorizontalMargin];
+  _labelLeadingConstraint = [label.leadingAnchor constraintEqualToAnchor:contentView.leadingAnchor
+                                                                constant:RCTDevLoadingViewLabelHorizontalPadding];
   _labelTrailingConstraint = [label.trailingAnchor constraintEqualToAnchor:contentView.trailingAnchor
                                                                   constant:-RCTDevLoadingViewLabelHorizontalPadding];
-  // Sits flush under a top safe area inset such as the status bar, or 16pt from the top edge without one.
+  // Sits flush under a top safe area inset such as the status bar, or 16pt from the top edge without one, each
+  // pushed down by the banners stacked above it.
   _topSafeAreaConstraint = [container.topAnchor constraintGreaterThanOrEqualToAnchor:safeArea.topAnchor];
-  NSLayoutConstraint *topPull = [container.topAnchor constraintEqualToAnchor:rootView.topAnchor];
-  topPull.priority = UILayoutPriorityDefaultLow;
+  _topMarginConstraint = [container.topAnchor constraintGreaterThanOrEqualToAnchor:rootView.topAnchor
+                                                                          constant:RCTDevLoadingViewTopMargin];
+  _topPullConstraint = [container.topAnchor constraintEqualToAnchor:rootView.topAnchor];
+  _topPullConstraint.priority = UILayoutPriorityDefaultLow;
+  _labelTopConstraint = [label.topAnchor constraintEqualToAnchor:contentView.topAnchor
+                                                        constant:RCTDevLoadingViewLabelVerticalPadding];
+  _labelBottomConstraint = [label.bottomAnchor constraintEqualToAnchor:contentView.bottomAnchor
+                                                              constant:-RCTDevLoadingViewLabelVerticalPadding];
+  _minHeightConstraint = [container.heightAnchor constraintGreaterThanOrEqualToConstant:RCTDevLoadingViewMinHeight];
   [NSLayoutConstraint activateConstraints:@[
     _centerConstraint,
     _trailingLimitConstraint,
     [container.leadingAnchor constraintGreaterThanOrEqualToAnchor:safeArea.leadingAnchor
                                                          constant:RCTDevLoadingViewHorizontalMargin],
     _topSafeAreaConstraint,
-    [container.topAnchor constraintGreaterThanOrEqualToAnchor:rootView.topAnchor constant:RCTDevLoadingViewTopMargin],
-    topPull,
-    [container.heightAnchor constraintGreaterThanOrEqualToConstant:RCTDevLoadingViewMinHeight],
-    [label.topAnchor constraintEqualToAnchor:contentView.topAnchor constant:RCTDevLoadingViewLabelVerticalPadding],
-    [label.bottomAnchor constraintEqualToAnchor:contentView.bottomAnchor
-                                       constant:-RCTDevLoadingViewLabelVerticalPadding],
-    [label.leadingAnchor constraintEqualToAnchor:contentView.leadingAnchor
-                                        constant:RCTDevLoadingViewLabelHorizontalPadding],
+    _topMarginConstraint,
+    _topPullConstraint,
+    _minHeightConstraint,
+    _labelTopConstraint,
+    _labelBottomConstraint,
+    _labelLeadingConstraint,
   ]];
 
   _container = container;
@@ -453,13 +579,41 @@ RCT_EXPORT_MODULE()
   _label = label;
 }
 
+// In the paused-in-debugger state, the message aligns to the leading icon, and a smaller, dimmer, centered
+// "Tap to resume" line follows it.
 - (void)_setLabelText:(NSString *)message
 {
   NSMutableParagraphStyle *paragraphStyle = [NSMutableParagraphStyle new];
-  paragraphStyle.alignment = NSTextAlignmentCenter;
+  paragraphStyle.alignment = _resumeAction != nil ? NSTextAlignmentNatural : NSTextAlignmentCenter;
   paragraphStyle.lineSpacing = RCTDevLoadingViewLineSpacing;
-  _label.attributedText = [[NSAttributedString alloc] initWithString:message
-                                                          attributes:@{NSParagraphStyleAttributeName : paragraphStyle}];
+  NSMutableAttributedString *text =
+      [[NSMutableAttributedString alloc] initWithString:message
+                                             attributes:@{NSParagraphStyleAttributeName : paragraphStyle}];
+  if (_resumeAction != nil) {
+    NSMutableParagraphStyle *subtitleStyle = [paragraphStyle mutableCopy];
+    subtitleStyle.alignment = NSTextAlignmentCenter;
+    [text appendAttributedString:[[NSAttributedString alloc]
+                                     initWithString:@"\nTap to resume"
+                                         attributes:@{
+                                           NSParagraphStyleAttributeName : subtitleStyle,
+                                           NSFontAttributeName :
+                                               [UIFont systemFontOfSize:RCTDevLoadingViewSubtitleFontSize
+                                                                 weight:UIFontWeightRegular],
+                                           NSForegroundColorAttributeName :
+                                               [_label.textColor colorWithAlphaComponent:0.6],
+                                         }]];
+  }
+  _label.attributedText = text;
+}
+
+// Hides the banner, or resumes the debugger in the paused state.
+- (void)_handleTap
+{
+  if (_resumeAction != nil) {
+    _resumeAction();
+  } else {
+    [self hide];
+  }
 }
 
 - (void)_createDismissButton
@@ -492,6 +646,52 @@ RCT_EXPORT_MODULE()
   _dismissButton = button;
 }
 
+- (void)_createPausedIcon
+{
+  // Cream pause bars in a deep amber circle.
+  UIImageSymbolConfiguration *configuration =
+      [[UIImageSymbolConfiguration configurationWithPointSize:RCTDevLoadingViewPausedIconSize]
+          configurationByApplyingConfiguration:[UIImageSymbolConfiguration configurationWithPaletteColors:@[
+            [UIColor colorWithRed:0.996 green:0.972 blue:0.869 alpha:1],
+            [UIColor colorWithRed:0.343 green:0.269 blue:0.105 alpha:1],
+          ]]];
+  UIImageView *icon = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"pause.circle.fill"
+                                                                 withConfiguration:configuration]];
+  icon.contentMode = UIViewContentModeScaleAspectFit;
+  icon.translatesAutoresizingMaskIntoConstraints = NO;
+  [_contentView addSubview:icon];
+
+  // Inset from the capsule's leading end by the same amount as from its top and bottom.
+  CGFloat inset = (RCTDevLoadingViewPausedMinHeight - RCTDevLoadingViewPausedIconSize) / 2;
+  _labelToIconConstraint = [_label.leadingAnchor constraintEqualToAnchor:icon.trailingAnchor constant:6];
+  [NSLayoutConstraint activateConstraints:@[
+    [icon.leadingAnchor constraintEqualToAnchor:_contentView.leadingAnchor constant:inset],
+    [icon.centerYAnchor constraintEqualToAnchor:_contentView.centerYAnchor],
+    [icon.widthAnchor constraintEqualToConstant:RCTDevLoadingViewPausedIconSize],
+    [icon.heightAnchor constraintEqualToConstant:RCTDevLoadingViewPausedIconSize],
+  ]];
+
+  _pausedIcon = icon;
+}
+
+// Dims the app and swallows touches while it is paused, since it cannot respond to them. The dimming view sits
+// below the banner, which this window's hit testing leaves interactive.
+- (void)_createDimmingView
+{
+  UIView *dimmingView = [UIView new];
+  dimmingView.backgroundColor = [UIColor.blackColor colorWithAlphaComponent:RCTDevLoadingViewDimmingAlpha];
+  dimmingView.translatesAutoresizingMaskIntoConstraints = NO;
+  UIView *rootView = _window.rootViewController.view;
+  [rootView insertSubview:dimmingView belowSubview:_container];
+  [NSLayoutConstraint activateConstraints:@[
+    [dimmingView.topAnchor constraintEqualToAnchor:rootView.topAnchor],
+    [dimmingView.bottomAnchor constraintEqualToAnchor:rootView.bottomAnchor],
+    [dimmingView.leadingAnchor constraintEqualToAnchor:rootView.leadingAnchor],
+    [dimmingView.trailingAnchor constraintEqualToAnchor:rootView.trailingAnchor],
+  ]];
+  _dimmingView = dimmingView;
+}
+
 - (void)_removeBanner
 {
   [_container removeFromSuperview];
@@ -499,11 +699,21 @@ RCT_EXPORT_MODULE()
   _contentView = nil;
   _label = nil;
   _dismissButton = nil;
+  _pausedIcon = nil;
+  [_dimmingView removeFromSuperview];
+  _dimmingView = nil;
+  _labelLeadingConstraint = nil;
+  _labelToIconConstraint = nil;
+  _minHeightConstraint = nil;
+  _labelTopConstraint = nil;
+  _labelBottomConstraint = nil;
   _labelTrailingConstraint = nil;
   _labelToButtonConstraint = nil;
   _centerConstraint = nil;
   _trailingLimitConstraint = nil;
   _topSafeAreaConstraint = nil;
+  _topMarginConstraint = nil;
+  _topPullConstraint = nil;
   _hiding = NO;
 }
 
@@ -544,7 +754,11 @@ RCT_EXPORT_MODULE()
   if (!RCTDevLoadingViewGetEnabled()) {
     return;
   }
+  [self _hide];
+}
 
+- (void)_hide
+{
   // Cancel the initial message block so it doesn't display later and get stuck.
   [self clearInitialMessageDelay];
 
@@ -565,12 +779,15 @@ RCT_EXPORT_MODULE()
             self->_container.alpha = 0;
           }
           self->_container.transform = [self _hiddenTransform];
+          self->_dimmingView.alpha = 0;
         }
         completion:^(__unused BOOL finished) {
           if (self->_generation != generation) {
             return;
           }
           [self _removeBanner];
+          [RCTDevLoadingViewVisibleBanners() removeObject:self];
+          [self _updateOtherBannersAnimated:YES];
           self->_window.hidden = YES;
           self->_window = nil;
         }];
@@ -678,6 +895,12 @@ RCT_EXPORT_MODULE()
               withColor:(NSNumber *)color
     withBackgroundColor:(NSNumber *)backgroundColor
       withDismissButton:(NSNumber *)dismissButton
+{
+}
+- (void)showPausedInDebuggerMessage:(NSString *)message onResume:(dispatch_block_t)onResume
+{
+}
+- (void)hidePausedInDebuggerMessage
 {
 }
 - (void)showWithURL:(NSURL *)URL
