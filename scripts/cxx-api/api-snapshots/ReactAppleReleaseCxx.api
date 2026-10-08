@@ -944,6 +944,8 @@ interface RCTDefaultReactNativeFactoryDelegate : public UIResponder <RCTReactNat
 }
 
 interface RCTDevLoadingView : public NSObject <RCTDevLoadingViewProtocol, RCTBridgeModule> {
+  public virtual void hidePausedInDebuggerMessage();
+  public virtual void showPausedInDebuggerMessage:onResume:(NSString* message, dispatch_block_t onResume);
 }
 
 interface RCTDevMenu : public NSObject {
