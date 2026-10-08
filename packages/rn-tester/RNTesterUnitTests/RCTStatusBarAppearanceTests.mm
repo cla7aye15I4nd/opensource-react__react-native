@@ -14,6 +14,10 @@
 #import <React/RCTUtils.h>
 #import <React/RCTUtilsUIOverride.h>
 
+@interface RCTFabricModalHostViewController ()
+- (void)captureStatusBarAppearance;
+@end
+
 @interface RCTStatusBarManager (RCTStatusBarAppearanceTests)
 - (void)setStyle:(NSString *)style animated:(BOOL)animated;
 - (void)setHidden:(BOOL)hidden withAnimation:(NSString *)withAnimation;

@@ -17,6 +17,4 @@
 
 @property (nonatomic, assign) UIInterfaceOrientationMask supportedInterfaceOrientations;
 
-- (void)captureStatusBarAppearance;
-
 @end

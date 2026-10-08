@@ -18,6 +18,10 @@
 
 #import "RCTFabricModalHostViewController.h"
 
+@interface RCTFabricModalHostViewController ()
+- (void)captureStatusBarAppearance;
+@end
+
 using namespace facebook::react;
 
 #if !TARGET_OS_TV
